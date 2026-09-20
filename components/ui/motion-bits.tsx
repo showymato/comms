@@ -1,0 +1,120 @@
+"use client";
+
+import { motion, MotionConfig, useInView, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { formatAgo } from "@/lib/format";
+import { useElapsed } from "@/hooks/use-utils";
+import { cn } from "@/lib/utils";
+
+/** Global: honour prefers-reduced-motion for every transform animation. */
+export function MotionProvider({ children }: { children: ReactNode }) {
+  return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
+}
+
+/** fade-up on enter */
+export function Reveal({
+  children,
+  delay = 0,
+  y = 18,
+  className,
+  as = "div",
+}: {
+  children: ReactNode;
+  delay?: number;
+  y?: number;
+  className?: string;
+  as?: "div" | "li" | "section";
+}) {
+  const Tag = motion[as];
+  return (
+    <Tag
+      className={className}
+      initial={{ opacity: 0, y }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-8% 0px" }}
+      transition={{ duration: 0.7, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </Tag>
+  );
+}
+
+/** Headline masked line-reveal: each child line slides up from a clip. */
+export function ClipLines({ lines, className, lineClassName }: { lines: ReactNode[]; className?: string; lineClassName?: string }) {
+  return (
+    <span className={cn("block", className)}>
+      {lines.map((l, i) => (
+        <span key={i} className="block overflow-hidden pb-[0.08em] -mb-[0.08em]">
+          <motion.span
+            className={cn("block", lineClassName)}
+            initial={{ y: "105%" }}
+            animate={{ y: 0 }}
+            transition={{ duration: 0.9, delay: 0.1 + i * 0.09, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {l}
+          </motion.span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Animated check mark (path draw-in). */
+export function AnimatedCheck({ size = 20, className, delay = 0 }: { size?: number; className?: string; delay?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <motion.path
+        d="M5 12.5 10 17.5 19 7"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.45, delay, ease: [0.16, 1, 0.3, 1] }}
+      />
+    </svg>
+  );
+}
+
+/** Live-updating relative time. Renders the seed value during SSR, then ticks. */
+export function Ago({ sec, className }: { sec: number; className?: string }) {
+  const elapsed = useElapsed(1000);
+  return (
+    <span className={cn("tabular", className)} suppressHydrationWarning>
+      {formatAgo(sec + elapsed)}
+    </span>
+  );
+}
+
+/** Count-up number, triggered on view. */
+export function CountUp({ to, duration = 1.1, className, format }: { to: number; duration?: number; className?: string; format?: (n: number) => string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-10% 0px" });
+  const reduce = useReducedMotion();
+  const [v, setV] = useState(reduce ? to : 0);
+
+  useEffect(() => {
+    if (!inView) return;
+    if (reduce) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setV(to);
+      return;
+    }
+    let raf = 0;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const p = Math.min(1, (t - t0) / (duration * 1000));
+      setV(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [inView, to, duration, reduce]);
+
+  return (
+    <span ref={ref} className={cn("tabular", className)}>
+      {format ? format(v) : v}
+    </span>
+  );
+}
