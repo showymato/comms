@@ -21,16 +21,23 @@ export function HealthTag({ health, className, dotOnly }: { health: ProviderHeal
   );
 }
 
-/** LIVE / DEMO / HYBRID — which data mode this build runs in. */
+/** LIVE DATA / DEMO ENVIRONMENT / HYBRID — which data mode this build runs in. Demo is deliberately loud. */
 export function ModeBadge({ className }: { className?: string }) {
-  if (DATA_MODE === "live") return null;
+  if (DATA_MODE === "live") {
+    return (
+      <span className={cn("inline-flex h-5 items-center gap-1.5 rounded-xs border border-eligible/30 bg-eligible/8 px-1.5 font-mono text-[10px] tracking-[0.08em] text-eligible", className)} title="Values are read from Robinhood and Robinhood Chain. Anything that cannot be verified is UNKNOWN.">
+        <span aria-hidden className="size-1 rounded-full bg-eligible" />
+        LIVE DATA
+      </span>
+    );
+  }
   const hybrid = DATA_MODE === "hybrid";
   return (
     <span
-      className={cn("inline-flex h-5 items-center rounded-xs border border-conditional/30 bg-conditional/10 px-1.5 font-mono text-[10px] tracking-[0.08em] text-conditional", className)}
+      className={cn("inline-flex h-5 items-center rounded-xs border border-conditional/40 bg-conditional/12 px-1.5 font-mono text-[10px] font-medium tracking-[0.08em] text-conditional", className)}
       title={hybrid ? "Real market data; checks with no live source are filled with values marked DEMO" : "Simulated demo data — nothing is read from a live source"}
     >
-      {hybrid ? "HYBRID · DEMO GAPS" : "DEMO MODE"}
+      {hybrid ? "HYBRID · DEMO GAPS" : "DEMO ENVIRONMENT"}
     </span>
   );
 }

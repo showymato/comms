@@ -26,7 +26,7 @@ import { useAssets } from "@/hooks/use-live";
 import { useStore } from "@/hooks/use-store";
 import { useDialog, useMounted } from "@/hooks/use-utils";
 import { shortAddress } from "@/lib/format";
-import { API_ENDPOINTS } from "@/data/api-docs";
+import { API_SPEC } from "@/data/api-spec";
 import { Kbd } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
@@ -49,14 +49,14 @@ interface Item {
 
 const PAGES: Item[] = [
   { id: "p-home", group: "Navigate", label: "Home", href: "/", icon: <LayoutGrid size={15} />, keywords: "landing marketing" },
-  { id: "p-overview", group: "Navigate", label: "Overview", href: "/overview", icon: <LayoutGrid size={15} />, keywords: "dashboard" },
-  { id: "p-assets", group: "Navigate", label: "Assets", href: "/assets", icon: <Boxes size={15} />, keywords: "registry explorer tokens" },
-  { id: "p-elig", group: "Navigate", label: "Eligibility check", href: "/eligibility", icon: <ShieldCheck size={15} />, keywords: "check decision" },
-  { id: "p-pol", group: "Navigate", label: "Policies", href: "/policies", icon: <SlidersHorizontal size={15} />, keywords: "rules simulator" },
-  { id: "p-ev", group: "Navigate", label: "Events", href: "/events", icon: <Radio size={15} />, keywords: "stream feed" },
-  { id: "p-wh", group: "Navigate", label: "Webhooks", href: "/webhooks", icon: <Webhook size={15} />, keywords: "endpoints deliveries" },
-  { id: "p-api", group: "Navigate", label: "API reference", href: "/api-reference", icon: <BookOpen size={15} />, keywords: "docs rest endpoints" },
-  { id: "p-sdk", group: "Navigate", label: "SDK", href: "/sdk", icon: <FileCode2 size={15} />, keywords: "javascript typescript python" },
+  { id: "p-overview", group: "Navigate", label: "Overview", href: "/app", icon: <LayoutGrid size={15} />, keywords: "dashboard" },
+  { id: "p-assets", group: "Navigate", label: "Assets", href: "/app/assets", icon: <Boxes size={15} />, keywords: "registry explorer tokens" },
+  { id: "p-elig", group: "Navigate", label: "Eligibility check", href: "/app/eligibility", icon: <ShieldCheck size={15} />, keywords: "check decision" },
+  { id: "p-pol", group: "Navigate", label: "Policies", href: "/app/policies", icon: <SlidersHorizontal size={15} />, keywords: "rules simulator" },
+  { id: "p-ev", group: "Navigate", label: "Events", href: "/app/events", icon: <Radio size={15} />, keywords: "stream feed" },
+  { id: "p-wh", group: "Navigate", label: "Webhooks", href: "/app/webhooks", icon: <Webhook size={15} />, keywords: "endpoints deliveries" },
+  { id: "p-api", group: "Navigate", label: "API reference", href: "/developers/api", icon: <BookOpen size={15} />, keywords: "docs rest endpoints" },
+  { id: "p-sdk", group: "Navigate", label: "SDK", href: "/developers/sdk", icon: <FileCode2 size={15} />, keywords: "javascript typescript python" },
 ];
 
 const EVENT_TYPES: EventType[] = ["ELIGIBILITY_CHANGED", "ASSET_PAUSED", "ORACLE_UNAVAILABLE", "TRANSFER_RESTRICTED", "ASSET_REDEEMED", "ASSET_REACTIVATED"];
@@ -125,7 +125,7 @@ function Palette({ open, onClose }: { open: boolean; onClose: () => void }) {
 
     if (query && matches.length > 0) {
       const top = matches[0].a;
-      const base = `/assets/${top.address}`;
+      const base = `/app/assets/${top.address}`;
       const g = `${top.symbol}`;
       out.push(
         { id: `a-${top.symbol}`, group: g, label: top.name, hint: shortAddress(top.address), href: base, icon: <Boxes size={15} />, keywords: "" },
@@ -135,17 +135,17 @@ function Palette({ open, onClose }: { open: boolean; onClose: () => void }) {
         { id: `a-${top.symbol}-v`, group: g, label: `${top.symbol} · Events`, hint: "Event stream", href: `/events?asset=${top.symbol}`, icon: <Radio size={15} />, keywords: "" },
       );
       matches.slice(1, 5).forEach(({ a }) =>
-        out.push({ id: `a-${a.symbol}`, group: "Assets", label: a.name, hint: `${a.symbol} · ${shortAddress(a.address)}`, href: `/assets/${a.address}`, icon: <Boxes size={15} />, keywords: "" }),
+        out.push({ id: `a-${a.symbol}`, group: "Assets", label: a.name, hint: `${a.symbol} · ${shortAddress(a.address)}`, href: `/app/assets/${a.address}`, icon: <Boxes size={15} />, keywords: "" }),
       );
     } else if (!query) {
       matches.slice(0, 4).forEach(({ a }) =>
-        out.push({ id: `a-${a.symbol}`, group: "Assets", label: a.name, hint: `${a.symbol} · ${shortAddress(a.address)}`, href: `/assets/${a.address}`, icon: <Boxes size={15} />, keywords: "" }),
+        out.push({ id: `a-${a.symbol}`, group: "Assets", label: a.name, hint: `${a.symbol} · ${shortAddress(a.address)}`, href: `/app/assets/${a.address}`, icon: <Boxes size={15} />, keywords: "" }),
       );
     }
 
     const pol: Item[] = policies.map((p) => ({ id: `pol-${p.id}`, group: "Policies", label: p.name, hint: `Min liquidity $${p.minLiquidityUsd.toLocaleString("en-US")}`, href: `/policies?policy=${p.id}`, icon: <SlidersHorizontal size={15} />, keywords: "policy" }));
     const ev: Item[] = EVENT_TYPES.map((t) => ({ id: `ev-${t}`, group: "Events", label: t, hint: "Filter event stream", href: `/events?type=${t}`, icon: <Zap size={15} />, keywords: "event" }));
-    const docs: Item[] = API_ENDPOINTS.map((e) => ({ id: `doc-${e.id}`, group: "API docs", label: `${e.method} ${e.path}`, hint: e.summary, href: `/api-reference#${e.id}`, icon: <ListChecks size={15} />, keywords: "api docs endpoint" }));
+    const docs: Item[] = API_SPEC.map((e) => ({ id: `doc-${e.id}`, group: "API docs", label: `${e.method} ${e.path}`, hint: e.summary, href: `/developers/api#${e.id}`, icon: <ListChecks size={15} />, keywords: "api docs endpoint" }));
 
     const rest = [...PAGES, ...pol, ...ev, ...docs]
       .map((i) => ({ i, s: score(i, query) }))
@@ -192,7 +192,7 @@ function Palette({ open, onClose }: { open: boolean; onClose: () => void }) {
             animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
             exit={{ opacity: 0, scale: 0.98, y: -4, filter: "blur(4px)" }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-[600px] overflow-hidden rounded-xl border border-line-2 bg-base-2 shadow-[0_40px_120px_rgba(0,0,0,0.65)] outline-none"
+            className="relative w-full max-w-[600px] overflow-hidden rounded-xl border border-line-2 bg-base-2 shadow-float outline-none"
           >
             <div className="flex items-center gap-3 border-b border-line px-4">
               <Search size={16} className="text-ink-3" aria-hidden />
@@ -250,7 +250,7 @@ function Palette({ open, onClose }: { open: boolean; onClose: () => void }) {
                       onClick={() => go(item)}
                       className={cn(
                         "flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm",
-                        i === active ? "bg-white/7 text-ink" : "text-ink-2",
+                        i === active ? "bg-ink/7 text-ink" : "text-ink-2",
                       )}
                     >
                       <span className={cn("grid size-6 place-items-center rounded-sm", i === active ? "text-cyan" : "text-ink-3")}>{item.icon}</span>

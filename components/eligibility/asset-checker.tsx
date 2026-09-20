@@ -1,5 +1,6 @@
 "use client";
 
+import { recordCheck } from "@/lib/workspace";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, RotateCcw } from "lucide-react";
 import Link from "next/link";
@@ -27,7 +28,9 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
   const policyId = useId();
   const policies = useStore(policyService.state);
   const { assets } = useAssets();
-  const picks = PICK_SYMBOLS.map((s) => assets.find((a) => a.symbol === s)).filter((a): a is NonNullable<typeof a> => Boolean(a));
+  const named = PICK_SYMBOLS.map((s) => assets.find((a) => a.symbol === s)).filter((a): a is NonNullable<typeof a> => Boolean(a));
+  // if the well-known symbols are not in the registry, offer the first real registry entries instead — never invented ones
+  const picks = named.length >= 2 ? named : assets.slice(0, 4);
   const [chosen, setAddress] = useState<string | null>(null);
   const address = chosen ?? picks[0]?.address ?? "";
   const [policy, setPolicy] = useState("DEFAULT");
@@ -36,6 +39,7 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
   const [run, setRun] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showChecks, setShowChecks] = useState(false);
+  const [stage, setStage] = useState(0);
 
   const registered = result ? assets.find((a) => a.address.toLowerCase() === result.address.toLowerCase()) : undefined;
 
@@ -48,6 +52,10 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
     setError(null);
     setShowChecks(false);
     setPhase("loading");
+    setStage(0);
+    // RESOLVING ASSET → READING LIVE STATE: the service resolves the token in the registry, then performs the contract read
+    await Promise.resolve();
+    setStage(1);
     const r = await eligibilityService.check(value, policy);
     if (!r) {
       setError("Policy not found.");
@@ -55,7 +63,10 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
       return;
     }
     setResult(r);
+    const known = assets.find((a) => a.address.toLowerCase() === r.address.toLowerCase());
+    recordCheck({ symbol: known?.symbol ?? "UNREGISTERED", address: r.address, policy: r.policyId, eligibility: r.status });
     setRun((n) => n + 1);
+    setStage(2);
     setPhase("pipeline");
   }
 
@@ -110,6 +121,7 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
               {a.symbol}
             </button>
           ))}
+          {DATA_MODE === "demo" ? (
           <button
             type="button"
             onClick={() => setAddress(UNREGISTERED)}
@@ -120,6 +132,7 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
           >
             No evidence
           </button>
+          ) : null}
         </div>
 
         <label htmlFor={policyId} className="label mt-5">
@@ -138,8 +151,8 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
           ))}
         </select>
 
-        <Button type="submit" variant="accent" size="lg" magnetic className="mt-6 w-full font-mono tracking-[0.08em]" disabled={phase === "loading" || phase === "pipeline"}>
-          {phase === "loading" || phase === "pipeline" ? "EVALUATING…" : "CHECK ELIGIBILITY"}
+        <Button type="submit" variant="primary" size="lg" magnetic className="mt-6 w-full font-mono tracking-[0.08em] uppercase" disabled={phase === "loading" || phase === "pipeline"}>
+          {phase === "loading" || phase === "pipeline" ? "EVALUATING…" : "RUN CHECK"}
           <ArrowRight size={16} />
         </Button>
         <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
@@ -155,6 +168,17 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
           {result && registered ? <span className="font-mono text-[11px] text-ink-3">{registered.symbol} · {result.policyId}</span> : null}
           {result && !registered ? <span className="font-mono text-[11px] text-ink-3">Unregistered · {result.policyId}</span> : null}
         </div>
+
+        {phase !== "idle" ? (
+          <ol aria-label="Evaluation stages" className="mb-4 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10.5px] tracking-[0.08em] uppercase">
+            {["Resolving asset", "Reading live state", "Checking evidence", "Applying policy", "Decision"].map((l, i) => (
+              <li key={l} aria-current={i === (phase === "done" ? 4 : stage) ? "step" : undefined} className={cn("flex items-center gap-1.5", i < (phase === "done" ? 4 : stage) ? "text-ink-3" : i === (phase === "done" ? 4 : stage) ? "text-ink" : "text-ink-4")}>
+                <span aria-hidden className={cn("size-1.5 rounded-full", i <= (phase === "done" ? 4 : stage) ? "bg-signal" : "bg-ink/15")} />
+                {l}
+              </li>
+            ))}
+          </ol>
+        ) : null}
 
         <AnimatePresence mode="wait">
           {phase === "idle" ? (
@@ -181,7 +205,7 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
 
           {phase === "pipeline" && result ? (
             <motion.div key={`p-${run}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}>
-              <EvaluationPipeline checks={result.checks} onComplete={() => setPhase("done")} />
+              <EvaluationPipeline checks={result.checks} onComplete={() => { setStage(4); setPhase("done"); }} />
             </motion.div>
           ) : null}
 
@@ -200,7 +224,7 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
                   <RotateCcw size={13} /> Run again
                 </Button>
                 {showLink && registered ? (
-                  <Link href={`/assets/${registered.address}`} className="ml-auto inline-flex items-center gap-1.5 text-[13px] text-cyan hover:underline">
+                  <Link href={`/app/assets/${registered.symbol}`} className="ml-auto inline-flex items-center gap-1.5 text-[13px] text-cyan hover:underline">
                     Open evidence <ArrowRight size={13} />
                   </Link>
                 ) : null}

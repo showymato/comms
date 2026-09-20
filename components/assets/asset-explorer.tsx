@@ -10,7 +10,9 @@ import { Kbd, Panel } from "@/components/ui/primitives";
 import { StatusBadge, StatusGlyph } from "@/components/ui/status";
 import { eligibilityService, policyService } from "@/lib/services";
 import { useStore } from "@/hooks/use-store";
-import { lifecycle, oracleFlag, redemptionFlag, toneClass, transferFlag } from "@/lib/asset-view";
+import { lifecycle, toneClass } from "@/lib/asset-view";
+import { oracleFlag, redemptionFlag, transferFlag } from "@/lib/asset-view";
+import { tokenEquivalent } from "@/lib/live/evidence";
 import { shortAddress } from "@/lib/format";
 import { DATA_MODE } from "@/lib/data/config";
 import { HealthTag } from "@/components/live/badges";
@@ -18,7 +20,40 @@ import { useSliceHealthFor } from "@/hooks/use-system-status";
 import { STATUS, STATUS_ORDER } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
-type SortKey = "asset" | "symbol" | "eligibility" | "score" | "updated";
+type SortKey = "asset" | "symbol" | "eligibility" | "score" | "volume" | "updated";
+type Facet = "ALL" | "ACTIVE" | "INACTIVE" | "TRADABLE" | "NOT_TRADABLE";
+const FACETS: Array<[Facet, string]> = [["ALL", "All"], ["ACTIVE", "Active"], ["INACTIVE", "Inactive"], ["TRADABLE", "Tradable"], ["NOT_TRADABLE", "Not tradable"]];
+
+/** true = at least one session is tradable for whole shares; false = none are; null = the API did not say */
+function tradable(a: Asset): boolean | null {
+  const t = a.live?.trading;
+  if (!t) return null;
+  const all = [t.market.whole, t.extended.whole, t.overnight.whole];
+  if (all.includes("TRADABLE")) return true;
+  return all.every((x) => x === "UNKNOWN") ? null : false;
+}
+
+const fmtVol = (n: number | null | undefined) => (n === null || n === undefined ? null : n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(Math.round(n)));
+
+function Sessions({ a }: { a: Asset }) {
+  const t = a.live?.trading;
+  if (!t) return <span className="text-ink-4">—</span>;
+  const items: Array<[string, string, string]> = [["M", "Market", t.market.whole], ["E", "Extended", t.extended.whole], ["O", "Overnight", t.overnight.whole]];
+  return (
+    <span className="flex gap-1" role="group" aria-label="Trading sessions">
+      {items.map(([k, name, v]) => (
+        <span
+          key={k}
+          title={`${name}: ${v === "TRADABLE" ? "tradable" : v === "UNTRADABLE" ? "not tradable" : "unknown"}`}
+          className={cn("inline-flex size-[18px] items-center justify-center rounded-xs border font-mono text-[9.5px]", v === "TRADABLE" ? "border-ink bg-ink text-on-ink" : v === "UNTRADABLE" ? "border-line-2 text-ink-4 line-through" : "border-dashed border-line-2 text-ink-3")}
+        >
+          {v === "UNKNOWN" ? "?" : k}
+          <span className="sr-only">{`${name} ${v === "TRADABLE" ? "tradable" : v === "UNTRADABLE" ? "not tradable" : "unknown"}`}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
 interface Row {
   asset: Asset;
   result: EligibilityResult;
@@ -31,6 +66,7 @@ const SORTERS: Record<SortKey, (a: Row, b: Row) => number> = {
   symbol: (a, b) => a.asset.symbol.localeCompare(b.asset.symbol),
   eligibility: (a, b) => ORDER[a.result.status] - ORDER[b.result.status],
   score: (a, b) => (DATA_MODE === "demo" ? (a.result.score ?? -1) - (b.result.score ?? -1) : (a.asset.live?.price?.mid ?? -1) - (b.asset.live?.price?.mid ?? -1)),
+  volume: (a, b) => (a.asset.live?.price?.dailyVolume ?? -1) - (b.asset.live?.price?.dailyVolume ?? -1),
   updated: (a, b) => a.asset.updatedAgoSec - b.asset.updatedAgoSec,
 };
 
@@ -45,7 +81,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
 
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<EligibilityStatus | "ALL">("ALL");
-  const [chain, setChain] = useState("ALL");
+  const [facet, setFacet] = useState<Facet>("ALL");
   const [policyId, setPolicyId] = useState("DEFAULT");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "updated", dir: 1 });
   const [cursor, setCursor] = useState(0);
@@ -66,10 +102,16 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
     const needle = q.trim().toLowerCase();
     return rows
       .filter((r) => (status === "ALL" ? true : r.result.status === status))
-      .filter((r) => (chain === "ALL" ? true : r.asset.network === chain))
+      .filter((r) => {
+        if (facet === "ALL") return true;
+        if (facet === "ACTIVE") return lifecycle(r.asset).text === "ACTIVE";
+        if (facet === "INACTIVE") return lifecycle(r.asset).text === "INACTIVE";
+        if (facet === "TRADABLE") return tradable(r.asset) === true;
+        return tradable(r.asset) === false;
+      })
       .filter((r) => !needle || `${r.asset.name} ${r.asset.symbol} ${r.asset.address} ${r.asset.underlying}`.toLowerCase().includes(needle))
       .sort((a, b) => SORTERS[sort.key](a, b) * sort.dir);
-  }, [rows, q, status, chain, sort]);
+  }, [rows, q, status, facet, sort]);
 
   // "/" focuses search (unless typing elsewhere)
   useEffect(() => {
@@ -94,9 +136,9 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
   const clear = () => {
     setQ("");
     setStatus("ALL");
-    setChain("ALL");
+    setFacet("ALL");
   };
-  const filtered = !!q || status !== "ALL" || chain !== "ALL";
+  const filtered = !!q || status !== "ALL" || facet !== "ALL";
 
   return (
     <div>
@@ -131,12 +173,6 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
           )}
         </div>
 
-        <label className="sr-only" htmlFor="f-chain">Chain</label>
-        <select id="f-chain" value={chain} onChange={(e) => setChain(e.target.value)} className={selectCls}>
-          <option value="ALL">All chains</option>
-          <option value="RH_CHAIN">RH Chain</option>
-        </select>
-
         <label className="sr-only" htmlFor="f-policy">Policy</label>
         <select id="f-policy" value={policyId} onChange={(e) => setPolicyId(e.target.value)} className={selectCls}>
           {policies.map((p) => (
@@ -151,8 +187,26 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
           <option value="updated:1">Sort · Freshest</option>
           <option value="symbol:1">Sort · Symbol</option>
           <option value="eligibility:1">Sort · Eligibility</option>
-          <option value="score:-1">Sort · Score</option>
+          <option value="score:-1">Sort · Price</option>
+          <option value="volume:-1">Sort · Volume</option>
         </select>
+      </div>
+
+      <div role="group" aria-label="Filter by registry status" className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto pb-1">
+        {FACETS.map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            aria-pressed={facet === k}
+            onClick={() => {
+              setFacet(k);
+              setCursor(0);
+            }}
+            className={cn("h-8 shrink-0 rounded-md border px-3 font-mono text-[11px] tracking-[0.06em] uppercase transition-colors", facet === k ? "border-ink bg-ink text-on-ink" : "border-line text-ink-2 hover:border-line-2 hover:text-ink")}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <div role="group" aria-label="Filter by eligibility" className="no-scrollbar mb-4 flex gap-1.5 overflow-x-auto pb-1">
@@ -169,7 +223,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
               }}
               className={cn(
                 "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 font-mono text-[11px] tracking-[0.06em] transition-colors",
-                active ? "border-white/25 bg-white/8 text-ink" : "border-line text-ink-2 hover:border-line-2 hover:text-ink",
+                active ? "border-ink/25 bg-ink/8 text-ink" : "border-line text-ink-2 hover:border-line-2 hover:text-ink",
               )}
             >
               {s !== "ALL" ? <StatusGlyph status={s} size={12} className={STATUS[s].text} /> : null}
@@ -181,20 +235,18 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
       </div>
 
       {/* desktop table */}
-      <Panel className="hidden overflow-hidden md:block">
+      <div className="hidden md:block">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-[13px]">
+          <table className="w-full min-w-[1040px] border-collapse text-[13px]">
             <caption className="sr-only">Supported Stock Tokens with collateral eligibility under policy {policy.name}. {isLiveData ? "Live Robinhood registry." : "Demo data."}</caption>
-            <thead className="border-b border-line bg-white/2">
+            <thead className="border-b border-ink/80">
               <tr>
                 <SortHeader k="asset" sort={sort} onSort={toggleSort}>Asset</SortHeader>
-                <SortHeader k="symbol" sort={sort} onSort={toggleSort}>Symbol</SortHeader>
                 <SortHeader sort={sort} onSort={toggleSort}>Status</SortHeader>
+                <SortHeader k="score" className="text-right" sort={sort} onSort={toggleSort}>{isLiveData ? "Price" : "Score"}</SortHeader>
+                <SortHeader k="volume" className="text-right" sort={sort} onSort={toggleSort}>24h volume</SortHeader>
+                <SortHeader sort={sort} onSort={toggleSort}>Trading</SortHeader>
                 <SortHeader k="eligibility" sort={sort} onSort={toggleSort}>Eligibility</SortHeader>
-                <SortHeader k="score" className="text-right" sort={sort} onSort={toggleSort}>{isLiveData ? "Price (raw)" : "Score"}</SortHeader>
-                <SortHeader sort={sort} onSort={toggleSort}>Oracle</SortHeader>
-                <SortHeader sort={sort} onSort={toggleSort}>Transfer</SortHeader>
-                <SortHeader sort={sort} onSort={toggleSort}>Redemption</SortHeader>
                 <SortHeader k="updated" sort={sort} onSort={toggleSort}>Updated</SortHeader>
               </tr>
             </thead>
@@ -218,41 +270,50 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
             >
               {visible.map(({ asset: a, result: r }, i) => {
                 const life = lifecycle(a);
-                const or = oracleFlag(a);
-                const tr = transferFlag(a);
-                const rd = redemptionFlag(a);
+                const p = a.live?.price;
+                const eq = p && a.live ? tokenEquivalent(p.mid, a.live.multiplier) : null;
+                const vol = fmtVol(p?.dailyVolume);
                 return (
                   <tr
                     key={a.address}
                     data-row={i}
                     tabIndex={i === Math.min(cursor, visible.length - 1) ? 0 : -1}
                     onFocus={() => setCursor(i)}
-                    onClick={() => router.push(`/assets/${a.address}`)}
+                    onClick={() => router.push(`/app/assets/${a.symbol}`)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") router.push(`/assets/${a.address}`);
+                      if (e.key === "Enter") router.push(`/app/assets/${a.symbol}`);
                     }}
-                    className="group cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-white/[0.035] focus-visible:bg-white/[0.06] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan"
+                    className="group cursor-pointer border-b border-line transition-colors hover:bg-ink/[0.035] focus-visible:bg-ink/[0.06] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan [&>td]:transition-[padding] [&>td]:duration-300 hover:[&>td]:py-4"
                   >
-                    <td className="py-2.5 pr-3 pl-4">
-                      <Link href={`/assets/${a.address}`} prefetch={false} tabIndex={-1} className="block">
-                        <span className="block text-ink">{a.name}</span>
-                        <span className="block font-mono text-[11px] text-ink-3">{shortAddress(a.address)}</span>
+                    <td className="py-3 pr-3 pl-1">
+                      <Link href={`/app/assets/${a.symbol}`} prefetch={false} tabIndex={-1} className="flex items-center gap-3">
+                        {a.live?.logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={a.live.logoUrl} alt="" width={30} height={30} loading="lazy" className="size-[30px] rounded-full bg-surface-2" />
+                        ) : (
+                          <span aria-hidden className="size-[30px] rounded-full bg-surface-2" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="flex items-baseline gap-2">
+                            <span className="text-[15px] font-medium tracking-[-0.02em] text-ink">{a.symbol}</span>
+                            <span className="max-w-[24ch] truncate text-[12.5px] text-ink-3">{a.name}</span>
+                          </span>
+                          <span className="block font-mono text-[11px] text-ink-3">{shortAddress(a.address)}</span>
+                        </span>
                       </Link>
                     </td>
-                    <td className="px-3 font-mono text-[12.5px] font-medium text-ink">{a.symbol}</td>
                     <td className="px-3 font-mono text-[11.5px]"><span className={toneClass[life.tone]}>{life.text}</span></td>
-                    <td className="px-3"><StatusBadge status={r.status} size="sm" /></td>
-                    <td className="px-3 text-right font-mono text-[13px] text-ink tabular">
+                    <td className="px-3 text-right font-mono text-[13px] text-ink tabular" title={p ? `Raw underlying mid $${p.mid.toFixed(2)} · multiplier ${a.live?.multiplier}` : undefined}>
                       {isLiveData ? (
-                        a.live?.price ? `$${a.live.price.mid.toFixed(2)}` : <span className="text-ink-4">UNKNOWN</span>
+                        eq !== null ? `$${eq.toFixed(2)}` : <span className="text-ink-4">UNKNOWN</span>
                       ) : (
                         (r.score ?? <span className="text-ink-4">—</span>)
                       )}
                     </td>
-                    <td className={cn("px-3 font-mono text-[11.5px]", toneClass[or.tone])}>{or.text}</td>
-                    <td className={cn("px-3 font-mono text-[11.5px]", toneClass[tr.tone])}>{tr.text}</td>
-                    <td className={cn("px-3 font-mono text-[11.5px]", toneClass[rd.tone])}>{rd.text}</td>
-                    <td className="px-3 pr-4 font-mono text-[11.5px] text-ink-3"><Ago sec={a.updatedAgoSec} /></td>
+                    <td className="px-3 text-right font-mono text-[12.5px] text-ink-2 tabular">{vol ?? <span className="text-ink-4">{isLiveData ? "UNKNOWN" : "—"}</span>}</td>
+                    <td className="px-3"><Sessions a={a} /></td>
+                    <td className="px-3"><StatusBadge status={r.status} size="sm" /></td>
+                    <td className="px-3 pr-1 font-mono text-[11.5px] text-ink-3"><Ago sec={a.updatedAgoSec} /></td>
                   </tr>
                 );
               })}
@@ -260,7 +321,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
           </table>
         </div>
         {visible.length === 0 ? <Empty onClear={clear} filtered={filtered} /> : null}
-        <div className="flex items-center justify-between border-t border-line px-4 py-2.5 font-mono text-[11px] text-ink-3">
+        <div className="flex items-center justify-between px-1 py-3 font-mono text-[11px] text-ink-3">
           <span className="flex items-center gap-3">
             {visible.length} of {rows.length} assets {isLiveData ? <HealthTag health={registryHealth} /> : <span>· demo data</span>}
           </span>
@@ -270,7 +331,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
             <span className="flex items-center gap-1"><Kbd>/</Kbd> search</span>
           </span>
         </div>
-      </Panel>
+      </div>
 
       {/* mobile cards */}
       <ul className="space-y-2 md:hidden" aria-label="Assets">
@@ -280,7 +341,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
           const rd = redemptionFlag(a);
           return (
             <li key={a.address}>
-              <Link href={`/assets/${a.address}`} prefetch={false} className="block rounded-lg border border-line bg-surface/80 p-4 active:bg-surface-2">
+              <Link href={`/app/assets/${a.symbol}`} prefetch={false} className="block rounded-lg border border-line bg-surface/80 p-4 active:bg-surface-2">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-[15px] font-medium text-ink">{a.symbol}</div>
@@ -289,7 +350,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
                   <StatusBadge status={r.status} />
                 </div>
                 <dl className="mt-3.5 grid grid-cols-4 gap-2 border-t border-line pt-3 font-mono text-[11px]">
-                  {[[isLiveData ? "Price" : "Score", isLiveData ? (a.live?.price ? `$${a.live.price.mid.toFixed(2)}` : "UNKNOWN") : (r.score ?? "—"), "text-ink"], ["Oracle", or.text, toneClass[or.tone]], ["Transfer", tr.text, toneClass[tr.tone]], ["Redeem", rd.text, toneClass[rd.tone]]].map(([k, v, c]) => (
+                  {[[isLiveData ? "Price" : "Score", isLiveData ? (a.live?.price && tokenEquivalent(a.live.price.mid, a.live.multiplier) !== null ? `$${tokenEquivalent(a.live.price.mid, a.live.multiplier)!.toFixed(2)}` : "UNKNOWN") : (r.score ?? "—"), "text-ink"], ["Oracle", or.text, toneClass[or.tone]], ["Transfer", tr.text, toneClass[tr.tone]], ["Redeem", rd.text, toneClass[rd.tone]]].map(([k, v, c]) => (
                     <div key={String(k)}>
                       <dt className="text-ink-4">{k}</dt>
                       <dd className={cn("mt-0.5", String(c))}>{v}</dd>
@@ -326,7 +387,7 @@ function Empty({ onClear, filtered }: { onClear: () => void; filtered: boolean }
 
 function SortHeader({ k, children, className, sort, onSort }: { k?: SortKey; children: React.ReactNode; className?: string; sort: { key: SortKey; dir: 1 | -1 }; onSort: (k: SortKey) => void }) {
   return (
-    <th scope="col" aria-sort={k && sort.key === k ? (sort.dir === 1 ? "ascending" : "descending") : undefined} className={cn("h-10 px-3 text-left font-normal first:pl-4 last:pr-4", className)}>
+    <th scope="col" aria-sort={k && sort.key === k ? (sort.dir === 1 ? "ascending" : "descending") : undefined} className={cn("h-10 px-3 text-left font-normal first:pl-1 last:pr-1", className)}>
       {k ? (
         <button type="button" onClick={() => onSort(k)} className={cn("label inline-flex items-center gap-1 transition-colors hover:!text-ink", sort.key === k && "!text-ink")}>
           {children}

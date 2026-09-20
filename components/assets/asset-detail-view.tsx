@@ -32,7 +32,7 @@ export function AssetDetailView({ address }: { address: string }) {
   if (!asset) {
     return (
       <div className="mx-auto max-w-[1280px]">
-        <Link href="/assets" className="mb-4 inline-flex items-center gap-1 text-[13px] text-ink-3 transition-colors hover:text-ink">
+        <Link href="/app/assets" className="mb-4 inline-flex items-center gap-1 text-[13px] text-ink-3 transition-colors hover:text-ink">
           <ChevronLeft size={14} /> Assets
         </Link>
         {loading ? (
@@ -48,7 +48,7 @@ export function AssetDetailView({ address }: { address: string }) {
                 ? `The Robinhood asset registry could not be loaded: ${error}`
                 : `"${address}" is not a Stock Token in the Robinhood registry. COMMS reports UNKNOWN for addresses it has no evidence for.`}
             </p>
-            <Button href="/eligibility" variant="secondary" className="mt-5">
+            <Button href="/app/eligibility" variant="secondary" className="mt-5">
               Run an eligibility check
             </Button>
           </Panel>

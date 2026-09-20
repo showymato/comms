@@ -1,5 +1,6 @@
 "use client";
 
+import { explorerAddressUrl } from "@/lib/wallet/chain";
 import { RefreshCw } from "lucide-react";
 import { FreshnessTag, SourceBadge } from "@/components/live/badges";
 import { CopyButton } from "@/components/ui/code-block";
@@ -65,6 +66,9 @@ export function ContractInspection({ asset }: { asset: Asset }) {
           <span className="flex items-center gap-2">
             {asset.address}
             <CopyButton text={asset.address} label="Copy address" />
+            <a href={explorerAddressUrl(asset.address)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12px] text-cyan underline decoration-cyan/30 underline-offset-4 hover:decoration-cyan">
+              View on Blockscout →
+            </a>
           </span>
         </Row>
         <Row k="Network" source="ROBINHOOD" at={live.registryFetchedAt}>

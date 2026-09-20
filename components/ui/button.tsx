@@ -6,10 +6,10 @@ import { useRef, type ComponentProps, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const VARIANTS = {
-  primary: "bg-ink text-[#05070A] hover:bg-white",
-  accent: "bg-cyan text-[#05070A] hover:bg-[#7ee0ff]",
+  primary: "bg-ink text-on-ink hover:bg-ink/85",
+  accent: "bg-signal text-[#0a0a0a] hover:bg-[#33d3ff]",
   secondary: "bg-surface-2 text-ink hairline hover:bg-surface-3",
-  ghost: "text-ink-2 hover:text-ink hover:bg-white/5",
+  ghost: "text-ink-2 hover:text-ink hover:bg-ink/5",
 } as const;
 
 const SIZES = {

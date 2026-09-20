@@ -3,7 +3,7 @@ import { requestJson, type Timed } from "@/lib/data/request";
 import type { CorporateAction, PriceSnapshot, RegistryAsset } from "@/types";
 import { normalizeAssets, normalizeCorporateActions, normalizeQuote, normalizeQuotes } from "./normalize";
 
-const BASE = process.env.ROBINHOOD_API_BASE ?? "https://api.robinhood.com/rhj";
+const BASE = process.env.ROBINHOOD_API_BASE || "https://api.robinhood.com/rhj";
 const opts = { timeoutMs: 10_000, retries: 2 } as const;
 
 /** GET /rhj/assets */

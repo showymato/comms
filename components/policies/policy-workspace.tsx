@@ -10,6 +10,8 @@ import { policyService } from "@/lib/services";
 import { useStore } from "@/hooks/use-store";
 import { formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { savedPoliciesStore } from "@/lib/workspace";
+import { CopyButton } from "@/components/ui/code-block";
 import { RuleEditor } from "./rule-editor";
 import { PolicySimulator } from "./policy-simulator";
 
@@ -26,6 +28,7 @@ export function PolicyWorkspace({ assets, initialAsset, initialPolicy }: { asset
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [creating, setCreating] = useState<Rules | null>(null);
+  const [apiId, setApiId] = useState<{ id: string; error?: string } | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -40,6 +43,19 @@ export function PolicyWorkspace({ assets, initialAsset, initialPolicy }: { asset
     await policyService.update(selected.id, { name: selected.name, description: selected.description, ...draft });
     setSaving(false);
     setSaved(true);
+    // also keep a copy in this browser so it survives a reload (the policy service itself is in-memory)
+    savedPoliciesStore.set((all) => [{ id: selected.id, name: selected.name, ...draft, savedAt: new Date().toISOString() }, ...all.filter((x) => x.id !== selected.id)]);
+  }
+
+  /** A real request: POST /api/policies validates the draft and returns its stateless id for use with /api/eligibility/check. */
+  async function mint() {
+    try {
+      const res = await fetch("/api/policies", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: selected.name, ...draft }) });
+      const body = (await res.json()) as { data: { id: string } | null; meta: { error?: string } };
+      setApiId(body.data ? { id: body.data.id } : { id: "", error: body.meta.error ?? `HTTP ${res.status}` });
+    } catch (e) {
+      setApiId({ id: "", error: e instanceof Error ? e.message : "Request failed" });
+    }
   }
 
   return (
@@ -97,7 +113,10 @@ export function PolicyWorkspace({ assets, initialAsset, initialPolicy }: { asset
             <p className="px-4 py-3 text-[13.5px] text-ink-2">{selected.description}</p>
           </Panel>
           <RuleEditor value={draft} onChange={setDraft} />
-          <div className="mt-3 flex items-center justify-end gap-3">
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
+            <Button size="sm" variant="ghost" onClick={() => void mint()}>
+              Get API policy ID
+            </Button>
             <span role="status" className="font-mono text-[11.5px] text-ink-3">
               {saved && !dirty ? <span className="text-eligible">✓ Saved</span> : dirty ? "Unsaved changes" : "No changes"}
             </span>
@@ -108,6 +127,19 @@ export function PolicyWorkspace({ assets, initialAsset, initialPolicy }: { asset
               {saving ? "Saving…" : "Save changes"}
             </Button>
           </div>
+          {apiId ? (
+            <p role="status" className="mt-3 flex flex-wrap items-center justify-end gap-2 font-mono text-[11.5px] text-ink-3">
+              {apiId.error ? (
+                <span className="text-ineligible">{apiId.error}</span>
+              ) : (
+                <>
+                  <span className="break-all text-ink">{apiId.id}</span>
+                  <CopyButton text={apiId.id} label="Copy ID" />
+                  <span>Stateless: the id encodes the policy. Nothing is stored server-side.</span>
+                </>
+              )}
+            </p>
+          ) : null}
         </div>
       </div>
 

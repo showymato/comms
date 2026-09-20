@@ -20,7 +20,7 @@ function YesNo({ value, onChange, label, disabled }: { value: boolean; onChange:
           onClick={() => onChange(v)}
           className={cn(
             "h-6 min-w-11 rounded-[5px] px-2.5 tracking-[0.08em] transition-colors disabled:pointer-events-none",
-            value === v ? (v ? "bg-cyan/15 text-cyan" : "bg-white/8 text-ink") : "text-ink-3 hover:text-ink-2",
+            value === v ? (v ? "bg-cyan/15 text-cyan" : "bg-ink/8 text-ink") : "text-ink-3 hover:text-ink-2",
           )}
         >
           {v ? "YES" : "NO"}
@@ -82,7 +82,7 @@ export function RuleEditor({ value, onChange, readOnly = false, className }: { v
               disabled={readOnly}
               value={Math.min(value.minLiquidityUsd, 5_000_000)}
               onChange={(e) => set({ minLiquidityUsd: Number(e.target.value) })}
-              className="h-1 min-w-32 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan disabled:opacity-60"
+              className="h-1 min-w-32 flex-1 cursor-pointer appearance-none rounded-full bg-ink/10 accent-cyan disabled:opacity-60"
             />
           </div>
         </div>

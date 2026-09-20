@@ -1,5 +1,6 @@
 "use client";
 
+import { WatchButton } from "@/components/workspace/watch-button";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 import Link from "next/link";
@@ -40,7 +41,7 @@ export function AssetDetail({ asset, history }: { asset: Asset; history: Eligibi
 
   return (
     <div className="mx-auto max-w-[1280px]">
-      <Link href="/assets" className="mb-4 inline-flex items-center gap-1 text-[13px] text-ink-3 transition-colors hover:text-ink">
+      <Link href="/app/assets" className="mb-4 inline-flex items-center gap-1 text-[13px] text-ink-3 transition-colors hover:text-ink">
         <ChevronLeft size={14} /> Assets
       </Link>
 
@@ -56,6 +57,7 @@ export function AssetDetail({ asset, history }: { asset: Asset; history: Eligibi
             <span className="flex items-center gap-2">
               <span title={asset.address}>{asset.address.slice(0, 6)}…{asset.address.slice(-4)}</span>
               <CopyButton text={asset.address} label="Copy address" />
+              <WatchButton symbol={asset.symbol} />
             </span>
             <span className="flex items-center gap-1.5">
               <span className="text-ink-4">NETWORK</span> RH CHAIN
@@ -167,7 +169,7 @@ export function AssetDetail({ asset, history }: { asset: Asset; history: Eligibi
                     <button
                       type="button"
                       onClick={() => setSelected(c.id)}
-                      className="group relative flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-white/[0.035]"
+                      className="group relative flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-ink/[0.035]"
                       aria-label={`${c.label}: ${c.result}. Open evidence.`}
                     >
                       <span className={cn("relative z-10 grid size-[22px] shrink-0 place-items-center rounded-full border bg-base-1", st.border, st.text)}>

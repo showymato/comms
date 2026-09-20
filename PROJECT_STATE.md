@@ -1,59 +1,69 @@
 # COMMS — project state
 
-Collateral-eligibility layer for tokenized stocks. Next 16 + React 19 + Tailwind 4 + `motion`.
+Collateral-eligibility layer for tokenized stocks. Next 16 + React 19 + Tailwind 4 + `motion` + RainbowKit/wagmi/viem.
 Runs on **live Robinhood data by default**; a labelled demo dataset is still available.
 
-## Data modes — `NEXT_PUBLIC_DATA_MODE` (see `.env.example`)
-- `live` (default): Robinhood registry / prices / corporate actions + Robinhood Chain (id 4663) contract reads. Anything COMMS cannot verify is **UNKNOWN**.
-- `hybrid`: live data; checks with no live source are filled with values whose evidence source is `DEMO` (badged everywhere).
-- `demo`: the built-in simulated dataset (`data/`, `lib/services/mock/`). Shows `DEMO MODE`; makes no network calls.
+## Design system
+- Light editorial by default (paper `#F5F5F2`, ink `#0A0A0A`, graphite grays); cyan `#00C8FF` / violet `#7C5CFF` are signal only. `.theme-ink` (in `app/globals.css`) re-declares the same tokens for dark sections, so `text-ink`, `bg-ink/5`, `border-line` flip together. Overlays use `ink/N` (never `white/N`).
+- `text-cyan` is the text-safe shade; `bg-signal` is the pure infrastructure cyan for fills. Text on ink uses `text-on-ink` (not `text-base`, which is a Tailwind font size).
+- Type: Geist + Geist Mono, `.display` (+ `display-xl/lg/md`) for editorial headlines, `.label` for mono captions.
+
+## Routes
+- Marketing: `/` (hero state field, statement, sticky pipeline, UNKNOWN, live check, live registry, policy, developers, architecture, built-for, final CTA + system status).
+- App shell `/app`: `/app` (overview) · `/app/assets` · `/app/assets/[symbol]` (symbol or address) · `/app/eligibility` · `/app/policies` (studio + simulator) · `/app/events` · `/app/corporate-actions` · `/app/webhooks` · `/app/workspace` (wallet) · `/app/settings`.
+- Developers: `/developers` · `/developers/quickstart` · `/developers/api` (auth, eligibility, assets, policies, events, webhooks; each with a real-request playground) · `/developers/sdk` (+ examples).
+- Old paths (`/overview`, `/assets`, `/api-reference`, `/sdk` …) redirect (see `next.config.ts`).
+
+## API (app/api)
+`POST /api/eligibility/check` · `GET /api/eligibility/[address]` · `GET /api/assets` · `GET /api/assets/[address]` · `…/eligibility` · `…/history` · `GET|POST /api/policies` · `GET /api/policies/[id]` · `GET /api/events` · `GET|POST /api/webhooks` · `/api/prices` · `/api/chain` · `/api/corporate-actions` · `/api/contracts/[address]` · `/api/status`.
+- Decision shape: `{ asset, symbol, eligibility, eligible, policy, reasons, checks{id: observed state|null}, summary, evidence[], sources, degraded, mode, evaluatedAt }` (`lib/api-shape.ts`). Missing evidence → `null` / UNKNOWN; confidence is `null` unless a source reports one.
+- Policies are **stateless**: `POST /api/policies` returns an id `c.<base64url>` that encodes the thresholds (`lib/live/policy-codec.ts`); nothing is stored server-side (`persisted:false`). `resolvePolicy` accepts these ids.
+- Events (`lib/chain/events.ts`, `lib/live/event-feed.ts`): real `eth_getLogs` over all Stock Token contracts (Paused/Unpaused → TRANSFER_RESTRICTION; Upgraded/OwnershipTransferred/Transfer → CONTRACT_EVENT) + Robinhood corporate actions. ASSET_STATUS_CHANGED / ELIGIBILITY_CHANGED are only observed per browser session (LiveDataManager diffs); ORACLE_CHANGE has no source and is never emitted.
+- Webhooks: `POST /api/webhooks` sends ONE real HMAC-signed `webhook.test` to a public https endpoint (SSRF-guarded, rate-limited) and returns the real status/latency. Endpoints and delivery records live in the browser (`lib/workspace.ts`). There is no persistent delivery pipeline.
+
+## Data modes — `NEXT_PUBLIC_DATA_MODE`
+`live` (default: LIVE DATA badge) · `hybrid` (checks with no live source badged DEMO) · `demo` (DEMO ENVIRONMENT everywhere). Fixed per deployment, not a runtime toggle — Settings shows the active mode and how to change it.
 
 ## Architecture
 ```
-browser ─► LiveDataManager (lib/data/live-manager.ts, the only poller)
-              │  /api/assets /api/prices[/sym] /api/corporate-actions /api/chain /api/chain/paused /api/contracts/[addr]
-              ▼
-         Next route handlers (app/api/**)  ── cache + dedupe + stale-while-revalidate (lib/providers/serve.ts, server-data.ts)
-              ▼
-         providers (lib/providers/): robinhood · robinhoodChain (lib/chain/rh-client.ts) · blockscout · coingecko · alphaVantage
-              ▼
-         normalize.ts (pure) ─► lib/live/evidence.ts (pure: real evidence → Asset, missing → UNKNOWN) ─► lib/engine.ts (pure, unchanged)
+browser ─► LiveDataManager (lib/data/live-manager.ts, the only poller) + eventsFeed (lib/data/events-feed.ts)
+              ▼  /api routes (cache + dedupe + SWR: lib/providers/serve.ts, server-data.ts)
+         providers: robinhood · robinhoodChain (lib/chain/rh-client.ts) · blockscout · coingecko · alphaVantage
+              ▼  normalize.ts ─► lib/live/evidence.ts (real evidence → Asset, missing → UNKNOWN) ─► lib/engine.ts (pure)
 ```
-- Polling (`lib/data/config.ts`): registry 5 min, prices 30 s (server cache 15 s), chain 15 s (server cache 8 s), paused() sweep 5 min in chunks of 40 (public RPC 429s above ~50 calls/batch), watched-asset contract read 60 s. Backoff ×2 to 5 min on failure, paused while the tab is hidden.
-- `LIVE` is only shown when data was fetched successfully inside its freshness window (`sliceHealth`), else LAST KNOWN / STALE / DEGRADED / OFFLINE.
-- Robinhood APIs send no CORS headers → all upstream calls go through `/api` routes. Optional keys (`COINGECKO_API_KEY`, `ALPHA_VANTAGE_API_KEY`) are server env vars only; only the last 4 chars are ever reported.
-- Live evidence actually available: asset status (Robinhood), `paused()` / bytecode / name / symbol / decimals / supply (chain, pinned block), quote freshness (Robinhood). **Not available → UNKNOWN**: transfer enabled, oracle healthy, redemption, transfer/issuer restrictions, collateral support, liquidity. So in live mode assets resolve to UNKNOWN (or INELIGIBLE if paused/inactive). Never ELIGIBLE without `hybrid`.
-- The score is `NOT AVAILABLE` outside demo mode (its formula weights liquidity, which no live source supplies). Confidence is `null` (not reported), never invented.
-- `/api/eligibility/check` (POST `{asset, policy}`) and `/api/eligibility/[address]` run the same engine server-side; the SDK playground calls it.
+- `hooks/use-evaluated.ts` derives every marketing/dashboard number (counts, coverage, decisions) from the live registry — nothing typed in.
+- Live evidence available: asset status, `paused()`/bytecode/name/symbol/decimals/supply (chain, pinned block), quote freshness. **UNKNOWN**: transfer, oracle, redemption, restrictions, collateral support, liquidity → live assets resolve UNKNOWN (or INELIGIBLE if paused/inactive). Never ELIGIBLE without `hybrid`.
+- Bulk `/rhj/prices` reports volume `"0"` for many symbols (real); per-symbol quotes carry real volume.
+
+## Wallet (RainbowKit + wagmi 2 + viem + TanStack Query)
+- `lib/wallet/chain.ts` (Robinhood Chain 4663, Blockscout), `lib/wallet/config.ts` (`getDefaultConfig` when `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is set, else injected/MetaMask/Coinbase only + visible "Wallet connection configuration required" notice), `components/wallet/*`.
+- Read-only: no transactions, approvals or spend. The only signature is the explicit "Sign to verify" on the workspace page (`personal_sign`, verified in-browser).
+- `next.config.ts` aliases the optional `@x402/*` modules (pulled in by `@wagmi/connectors` → Base Account → CDP SDK) to an empty stub.
+- Workspace data (watchlist, saved policies, recent checks, webhook endpoints) is **local to the browser** (`lib/local-store.ts`) and labelled so — not synced, not tied to the address.
+
+## SDK
+`packages/eligibility` (`@comms/eligibility`): zero-dependency typed client (`createClient`, `check`, `assets.*`, `policies.*`, `events.list`). Consumed from source (tsconfig path alias); not published.
+
+## Env (`.env.example`, real values in git-ignored `.env.local`)
+`NEXT_PUBLIC_DATA_MODE`, `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`, `ROBINHOOD_RPC_URL` (server, private; empty = public RPC), `NEXT_PUBLIC_RH_RPC_URL` (browser reads), `COINGECKO_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `BLOCKSCOUT_API_URL`, `COMMS_API_URL`. Empty values are treated as unset.
 
 ## Verify
-- `npm run verify` — tsc, eslint, vitest (32 tests: engine, normalizers, evidence→engine, cache, LIVE-label rule), production build.
-- Browser passes need the nova project's Playwright (run from a shell with `next start -p 3277` up):
-  `node scripts/live-check.mjs http://localhost:3277` (30 checks: real rows, price, onchain evidence, UNKNOWN, failure injection, mobile),
-  `node scripts/mode-check.mjs demo|hybrid <url>` (needs a dev server started with that `NEXT_PUBLIC_DATA_MODE`),
-  `node scripts/shoot-hero.mjs`, `node scripts/fps-ab.mjs`, and the older `shoot-app.mjs` / `shoot-landing.mjs` passes.
-- Ports 3100/3220 are often taken by other projects. Use 3277. Only one `next dev` per directory.
-- Windows: stop a stray server with `Get-NetTCPConnection -LocalPort 3277 | % { Stop-Process -Id $_.OwningProcess -Force }`.
-
-## Routes
-`/` landing; app shell at `/overview /assets /assets/[address] /eligibility /policies /events /corporate-actions /webhooks /api-reference /sdk /settings` (Settings → Data sources). ⌘K palette is global.
-
-## Still demo-only (and labelled)
-Webhook console, the demo event stream, organization/settings rows, and the landing sections that walk through the engine with AAPL/TSLA/NFLX/AMD scenarios (each carries a DEMO DATA tag). COMMS has no webhook backend or persistent event store; observed events (price change, state change, eligibility change, new corporate action) exist for the current browser session only.
-
-## Motion system (partial)
-`lib/motion.ts` (easing/springs/depth/field density), `hooks/use-motion.ts` (useReducedMotion, useCountUp, useScrollProgress, useReveal, useScrollDirection), `components/landing/collateral-field.tsx` (hero canvas: cursor-reactive network, real request/response events spawn packets), compressing nav with active-section indicator and live status pill, rolling price digits, count-up on change. Not built: scroll-driven system activation / sticky storytelling, the spatial check matrix, spatial architecture with particles, the cinematic real-time replay, policy→decision causal line, API response morphing, easter egg, ambient telemetry text, section-specific transitions.
+- `npm run verify` — tsc, eslint, vitest (37 tests), production build.
+- Browser passes need the nova project's Playwright (dev server on 3277). `scripts/shoot.mjs <base> <prefix> <WxH> <paths…>` (prefix with `MSYS_NO_PATHCONV=1` in Git Bash), `scripts/tour.mjs` (scroll tour), `scripts/wallet-check.mjs`, `scripts/flow-check.mjs`. The older `live-check`/`mode-check`/`shoot-*` scripts still use pre-redesign paths.
+- Ports 3100/3220 are often taken. Windows: stop a stray server with `Get-NetTCPConnection -LocalPort 3277 | % { Stop-Process -Id $_.OwningProcess -Force }`.
 
 ## Gotchas
-- Color token `base` collides with Tailwind `text-base` (font size). Use `text-[#05070A]` for dark-on-light text.
 - Unlayered global CSS beats Tailwind utilities; global rules live in `@layer base`.
-- `useStore` is in `hooks/use-store.ts` ("use client"); `lib/store.ts` stays server-safe.
-- `useLive` passes `manager.initial` as the server snapshot — never `store.get()` — or hydration mismatches once data has arrived.
-- `LiveDataManager.stop()` must reset `inflight`, otherwise a StrictMode re-attach dedupes onto an aborted request and never fetches.
-- Blockscout (robinhoodchain.blockscout.com) answers our server with a Cloudflare bot challenge; verification therefore reports UNKNOWN. Not worked around.
-- Git Bash tool: heredocs containing an apostrophe fail to parse — write files with the Write tool.
+- `useStore` (`hooks/use-store.ts`) and `useLocal` (`hooks/use-local.ts`) pass the initial snapshot as the server snapshot — never read `store.get()` for SSR — or hydration mismatches.
+- `LiveDataManager.stop()` must reset `inflight`, otherwise a StrictMode re-attach never fetches.
+- Blockscout answers our server with a Cloudflare bot challenge; verification reports UNKNOWN. Not worked around.
+- Git Bash tool: heredocs containing an apostrophe fail — write files with the Write tool.
+- `.next/dev/types` can be stale after adding routes; `tsc` errors there vanish once the dev server regenerates them (or after `next build`).
 
-## Not verified
-- 60 fps on real GPUs (headless software rendering measured ~15–25 fps with or without the hero canvas; the canvas adds roughly 7 ms/frame there).
-- Reduced-motion path, screen-reader behaviour, and hybrid/demo landing pages beyond the scripted checks.
-- Nothing is committed.
+## Not done / not verified
+- Real wallet connect + wrong-network flow were not exercised with an actual wallet (only the connect modal and the config notice were verified in a headless browser).
+- 60 fps on real GPUs; reduced-motion path; screen-reader behaviour.
+- No runtime LIVE/DEMO toggle (mode is per deployment).
+- Scroll-driven items still missing: cinematic real-time replay, policy→decision causal line, API response morphing.
+- No persistent backend: webhook delivery pipeline, policy storage, eligibility history, server-side accounts.
+- WebSocket event subscriptions (polling only).

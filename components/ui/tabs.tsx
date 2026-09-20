@@ -45,7 +45,7 @@ export function Tabs<T extends string>({
             )}
           >
             {active ? (
-              <motion.span layoutId={layoutId} className="absolute inset-0 rounded-[5px] bg-white/8 hairline" transition={{ type: "spring", stiffness: 500, damping: 38 }} />
+              <motion.span layoutId={layoutId} className="absolute inset-0 rounded-[5px] bg-ink/8 hairline" transition={{ type: "spring", stiffness: 500, damping: 38 }} />
             ) : null}
             <span className="relative">
               {o.label}

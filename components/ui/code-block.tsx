@@ -25,7 +25,7 @@ export function CopyButton({ text, className, label = "Copy" }: { text: string; 
         timer.current = setTimeout(() => setDone(false), 1600);
       }}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-md border border-line bg-white/3 px-2 font-mono text-[11px] text-ink-2 transition-colors hover:bg-white/8 hover:text-ink",
+        "inline-flex h-7 items-center gap-1.5 rounded-md border border-line bg-ink/3 px-2 font-mono text-[11px] text-ink-2 transition-colors hover:bg-ink/8 hover:text-ink",
         className,
       )}
     >
@@ -57,7 +57,7 @@ export function CodeBlock({
 
   return (
     <div className={cn("overflow-hidden rounded-lg border border-line bg-base-1", className)}>
-      <div className="flex items-center justify-between border-b border-line bg-white/2 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-line bg-ink/2 px-3 py-2">
         <span className="font-mono text-[11px] text-ink-3">{title ?? lang}</span>
         <CopyButton text={code} />
       </div>

@@ -5,7 +5,10 @@ import type { CheckOutcome } from "@/types";
 import { CodeBlock } from "@/components/ui/code-block";
 import { ResultTag } from "@/components/ui/status";
 import { SourceBadge } from "@/components/live/badges";
-import { formatTimestamp } from "@/lib/format";
+import { ExternalLink } from "lucide-react";
+import { useNowMs } from "@/hooks/use-live";
+import { explorerAddressUrl, explorerBlockUrl } from "@/lib/wallet/chain";
+import { formatAgo, formatTimestamp } from "@/lib/format";
 import { isDemoSource } from "@/lib/live/health";
 import { CHECK_STATUS, STATUS } from "@/lib/status";
 import { json } from "@/data/api-docs";
@@ -21,6 +24,7 @@ const Field = ({ k, children, className }: { k: string; children: React.ReactNod
 /** Auditable evidence record for one check. Used in the drawer and on the landing page. */
 export function EvidencePanel({ check, compactJson = false }: { check: CheckOutcome; compactJson?: boolean }) {
   const { evidence: e } = check;
+  const now = useNowMs(1000);
   const status = CHECK_STATUS[check.result];
   const record = {
     check: check.field,
@@ -64,13 +68,16 @@ export function EvidencePanel({ check, compactJson = false }: { check: CheckOutc
         ) : null}
         <Field k="Block number">{e.blockNumber > 0 ? e.blockNumber.toLocaleString("en-US") : "— (not tied to a block)"}</Field>
         <Field k="Timestamp">{e.value === null ? "—" : formatTimestamp(e.timestamp)}</Field>
+        <Field k="Freshness">
+          {e.value === null || !now ? "—" : `${formatAgo(Math.max(0, (now - Date.parse(e.timestamp)) / 1000))} · observed ${formatTimestamp(e.timestamp)} UTC`}
+        </Field>
         <Field k="Confidence">
           {e.confidence === null ? (
             <span className="text-ink-3">NOT REPORTED</span>
           ) : (
             <span className="flex items-center gap-3">
               <span className="tabular">{e.confidence.toFixed(1)}</span>
-              <span aria-hidden className="h-1 w-24 overflow-hidden rounded-full bg-white/8">
+              <span aria-hidden className="h-1 w-24 overflow-hidden rounded-full bg-ink/8">
                 <motion.span
                   className={cn("block h-full rounded-full", STATUS[status].dot)}
                   initial={{ width: 0 }}
@@ -79,6 +86,24 @@ export function EvidencePanel({ check, compactJson = false }: { check: CheckOutc
                 />
               </span>
             </span>
+          )}
+        </Field>
+        <Field k="Explorer">
+          {e.contract || e.blockNumber > 0 ? (
+            <span className="flex flex-wrap gap-x-4 gap-y-1">
+              {e.contract ? (
+                <a href={explorerAddressUrl(e.contract)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cyan underline decoration-cyan/30 underline-offset-4 hover:decoration-cyan">
+                  View on Blockscout <ExternalLink size={11} aria-hidden />
+                </a>
+              ) : null}
+              {e.blockNumber > 0 ? (
+                <a href={explorerBlockUrl(e.blockNumber)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cyan underline decoration-cyan/30 underline-offset-4 hover:decoration-cyan">
+                  Block {e.blockNumber.toLocaleString("en-US")} <ExternalLink size={11} aria-hidden />
+                </a>
+              ) : null}
+            </span>
+          ) : (
+            <span className="text-ink-3">UNKNOWN — no onchain reference</span>
           )}
         </Field>
       </dl>

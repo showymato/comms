@@ -60,7 +60,7 @@ export function Popover({
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className={cn(
-              "absolute top-[calc(100%+8px)] z-50 w-72 origin-top rounded-lg border border-line-2 bg-base-2 p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.55)]",
+              "absolute top-[calc(100%+8px)] z-50 w-72 origin-top rounded-lg border border-line-2 bg-base-2 p-1.5 shadow-float",
               align === "right" ? "right-0" : "left-0",
               panelClassName,
             )}

@@ -80,7 +80,7 @@ export function EventStream({ initial, initialType, initialAsset }: { initial: E
             type="button"
             aria-pressed={type === t}
             onClick={() => setType(t)}
-            className={cn("h-8 shrink-0 rounded-md border px-2.5 font-mono text-[10.5px] tracking-[0.05em] transition-colors", type === t ? "border-white/25 bg-white/8 text-ink" : "border-line text-ink-3 hover:border-line-2 hover:text-ink-2")}
+            className={cn("h-8 shrink-0 rounded-md border px-2.5 font-mono text-[10.5px] tracking-[0.05em] transition-colors", type === t ? "border-ink/25 bg-ink/8 text-ink" : "border-line text-ink-3 hover:border-line-2 hover:text-ink-2")}
           >
             {t}
           </button>
@@ -88,7 +88,7 @@ export function EventStream({ initial, initialType, initialAsset }: { initial: E
       </div>
 
       <div className="overflow-hidden rounded-lg border border-line bg-base-1">
-        <div className="flex items-center justify-between border-b border-line bg-white/2 px-4 py-2.5 font-mono text-[11.5px]">
+        <div className="flex items-center justify-between border-b border-line bg-ink/2 px-4 py-2.5 font-mono text-[11.5px]">
           <span className="text-ink-2">
             <span className="text-cyan">$</span> comms events --follow{paused ? "" : <span className="animate-blink text-ink-3"> ▌</span>}
           </span>
@@ -115,7 +115,7 @@ export function EventStream({ initial, initialType, initialAsset }: { initial: E
                 transition={{ duration: 0.45, backgroundColor: { duration: 1.6 } }}
                 className="overflow-hidden border-b border-line/60 last:border-0"
               >
-                <Link href={`/assets/${e.address}`} className="grid grid-cols-[64px_1fr] items-center gap-x-4 gap-y-1 px-4 py-2.5 transition-colors hover:bg-white/3 md:grid-cols-[76px_64px_190px_minmax(0,1fr)_200px]">
+                <Link href={`/app/assets/${e.address}`} className="grid grid-cols-[64px_1fr] items-center gap-x-4 gap-y-1 px-4 py-2.5 transition-colors hover:bg-ink/3 md:grid-cols-[76px_64px_190px_minmax(0,1fr)_200px]">
                   <span className="text-ink-4 tabular">{formatClock(e.timestamp)}</span>
                   <span className="font-medium text-ink">{e.symbol}</span>
                   <span className={cn("col-span-2 md:col-span-1", TYPE_TONE[e.type])}>{e.type}</span>

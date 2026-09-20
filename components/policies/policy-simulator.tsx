@@ -29,7 +29,7 @@ function rows(asset: Asset, policy: Policy, r: EligibilityResult) {
 }
 
 export function PolicySimulator({ assets, policies, initialAsset, initialPolicy }: { assets: Asset[]; policies: Policy[]; initialAsset?: string; initialPolicy?: string }) {
-  const [assetAddr, setAssetAddr] = useState(assets.find((a) => a.address === initialAsset)?.address ?? assets[3].address);
+  const [assetAddr, setAssetAddr] = useState(assets.find((a) => a.address === initialAsset)?.address ?? (assets.find((a) => a.symbol === "AAPL") ?? assets[0]).address);
   const [policyId, setPolicyId] = useState(policies.find((p) => p.id === initialPolicy)?.id ?? "DEFAULT");
 
   const asset = assets.find((a) => a.address === assetAddr)!;
@@ -67,7 +67,7 @@ export function PolicySimulator({ assets, policies, initialAsset, initialPolicy 
       </div>
 
       <div className="overflow-hidden rounded-xl border border-line bg-surface/60">
-        <div className="hidden grid-cols-[1fr_56px_1fr] border-b border-line bg-white/2 md:grid">
+        <div className="hidden grid-cols-[1fr_56px_1fr] border-b border-line bg-ink/2 md:grid">
           <div className="label px-5 py-3 !text-ink-2">Current state · {asset.symbol}</div>
           <div />
           <div className="label border-l border-line px-5 py-3 !text-ink-2">Policy requirements · {policy.name}</div>

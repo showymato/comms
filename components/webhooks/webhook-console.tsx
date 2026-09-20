@@ -86,7 +86,7 @@ export function WebhookConsole() {
                           setDeliveryId(null);
                         }
                       }}
-                      className={cn("cursor-pointer border-b border-line transition-colors last:border-0", active ? "bg-white/[0.06]" : "hover:bg-white/3")}
+                      className={cn("cursor-pointer border-b border-line transition-colors last:border-0", active ? "bg-ink/[0.06]" : "hover:bg-ink/3")}
                     >
                       <td className="max-w-[240px] py-3 pr-3 pl-4">
                         <span className="block truncate font-mono text-[12.5px] text-ink">{HOST(e.url)}</span>
@@ -118,7 +118,7 @@ export function WebhookConsole() {
                 const active = d.id === delivery?.id;
                 return (
                   <li key={d.id} className="border-b border-line last:border-0">
-                    <button type="button" onClick={() => setDeliveryId(d.id)} aria-pressed={active} className={cn("grid w-full grid-cols-[auto_1fr_auto] items-center gap-x-4 px-4 py-2.5 text-left transition-colors sm:grid-cols-[64px_1fr_120px_70px]", active ? "bg-white/[0.06]" : "hover:bg-white/3")}>
+                    <button type="button" onClick={() => setDeliveryId(d.id)} aria-pressed={active} className={cn("grid w-full grid-cols-[auto_1fr_auto] items-center gap-x-4 px-4 py-2.5 text-left transition-colors sm:grid-cols-[64px_1fr_120px_70px]", active ? "bg-ink/[0.06]" : "hover:bg-ink/3")}>
                       <span className={cn("font-mono text-[12px] font-medium", ok ? "text-eligible" : "text-ineligible")}>
                         <span aria-hidden>{ok ? "✓" : "✕"} </span>
                         {d.httpStatus}

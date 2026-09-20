@@ -30,7 +30,7 @@ function Header({ id, eyebrow, title, onClose }: { id: string; eyebrow?: ReactNo
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="-mr-1.5 grid size-8 shrink-0 place-items-center rounded-md text-ink-2 transition-colors hover:bg-white/6 hover:text-ink"
+        className="-mr-1.5 grid size-8 shrink-0 place-items-center rounded-md text-ink-2 transition-colors hover:bg-ink/6 hover:text-ink"
       >
         <X size={16} />
       </button>
@@ -69,7 +69,7 @@ export function Drawer({ open, onClose, title, eyebrow, children, footer, classN
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 380, damping: 36, mass: 0.9 }}
             className={cn(
-              "absolute inset-y-0 right-0 flex w-full flex-col border-l border-line-2 bg-base-2 shadow-[-24px_0_80px_rgba(0,0,0,0.55)] outline-none sm:w-[460px]",
+              "absolute inset-y-0 right-0 flex w-full flex-col border-l border-line-2 bg-base-2 shadow-float outline-none sm:w-[460px]",
               className,
             )}
           >
@@ -114,7 +114,7 @@ export function Modal({ open, onClose, title, eyebrow, children, footer, classNa
             exit={{ opacity: 0, scale: 0.97, filter: "blur(6px)" }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className={cn(
-              "relative flex max-h-[88dvh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line-2 bg-base-2 shadow-[0_40px_120px_rgba(0,0,0,0.6)] outline-none",
+              "relative flex max-h-[88dvh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line-2 bg-base-2 shadow-float outline-none",
               className,
             )}
           >

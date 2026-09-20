@@ -103,7 +103,7 @@ export function HourlyColumns({ values, startHour }: { values: number[]; startHo
           </div>
           <div className="relative h-44">
             {ticks.map((t) => (
-              <span key={t} aria-hidden className="pointer-events-none absolute inset-x-0 h-px bg-white/[0.06]" style={{ bottom: `calc(24px + ${t / max} * (100% - 24px))` }} />
+              <span key={t} aria-hidden className="pointer-events-none absolute inset-x-0 h-px bg-ink/[0.06]" style={{ bottom: `calc(24px + ${t / max} * (100% - 24px))` }} />
             ))}
             <div className="absolute inset-x-0 top-0 bottom-6 flex items-end gap-0.5" role="list" aria-label="Status changes per hour">
               {values.map((v, i) => (
@@ -116,7 +116,7 @@ export function HourlyColumns({ values, startHour }: { values: number[]; startHo
                   onPointerLeave={() => setHover(null)}
                   onFocus={() => setHover(i)}
                   onBlur={() => setHover(null)}
-                  className="group relative flex h-full flex-1 items-end justify-center outline-none focus-visible:bg-white/4"
+                  className="group relative flex h-full flex-1 items-end justify-center outline-none focus-visible:bg-ink/4"
                 >
                   <motion.div
                     className={cn("w-full max-w-6 rounded-t-[4px] transition-colors", hover === i ? "bg-[#8fe4ff]" : "bg-cyan/80")}

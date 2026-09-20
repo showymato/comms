@@ -11,6 +11,7 @@ import type { Asset, DataMode, EligibilityResult, EvidenceSource, Policy } from 
 import { buildLiveAsset, unregisteredAsset, withDemoGaps } from "./evidence";
 import { cachedContract, cachedPrice, cachedRegistry, resolveAsset } from "@/lib/providers/server-data";
 import { isAddress } from "@/lib/format";
+import { decodePolicyId } from "./policy-codec";
 
 export interface ServerEvaluation {
   mode: DataMode;
@@ -27,7 +28,7 @@ const BAD_POLICY = Symbol("bad-policy");
 /** Accepts a policy id, or an inline { minLiquidityUsd, oracleRequired, transferRequired, redemptionRequired } object. */
 export function resolvePolicy(input: unknown): Policy | typeof BAD_POLICY {
   if (input === undefined || input === null) return POLICIES[0];
-  if (typeof input === "string") return POLICIES.find((p) => p.id === input.toUpperCase()) ?? BAD_POLICY;
+  if (typeof input === "string") return POLICIES.find((p) => p.id === input.toUpperCase()) ?? decodePolicyId(input) ?? BAD_POLICY;
   if (typeof input === "object") {
     const o = input as Record<string, unknown>;
     const min = o.minLiquidityUsd;

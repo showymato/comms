@@ -1,18 +1,20 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Bell, ChevronDown, Menu, Search } from "lucide-react";
+import { Bell, Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useCommandPalette } from "@/components/dashboard/command-palette";
 import { Logo } from "@/components/ui/logo";
+import { NetworkPill } from "@/components/site/site-nav";
+import { WalletButton } from "@/components/wallet/connect-button";
 import { Popover } from "@/components/ui/popover";
 import { Kbd } from "@/components/ui/primitives";
 import { HealthTag, ModeBadge } from "@/components/live/badges";
-import { ChainBlock, SystemStatusPanel } from "@/components/live/status-panel";
+import { ChainBlock } from "@/components/live/status-panel";
 import { EventTimeline } from "@/components/live/event-timeline";
-import { overallHealth, useSliceHealthFor, useSystemStatus } from "@/hooks/use-system-status";
+import { overallHealth, useSystemStatus } from "@/hooks/use-system-status";
 import { useLive } from "@/hooks/use-live";
 import { DATA_MODE } from "@/lib/data/config";
 import { StatusGlyph } from "@/components/ui/status";
@@ -29,9 +31,9 @@ function SideLink({ item, active }: { item: NavItem; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={cn("relative flex h-9 items-center gap-3 rounded-md px-3 text-[13.5px] transition-colors", active ? "text-ink" : "text-ink-2 hover:bg-white/4 hover:text-ink")}
+      className={cn("relative flex h-9 items-center gap-3 rounded-md px-3 text-[13.5px] transition-colors", active ? "text-ink" : "text-ink-2 hover:bg-ink/4 hover:text-ink")}
     >
-      {active ? <motion.span layoutId="nav-active" className="absolute inset-0 rounded-md bg-white/[0.07] hairline" transition={{ type: "spring", stiffness: 520, damping: 40 }} /> : null}
+      {active ? <motion.span layoutId="nav-active" className="absolute inset-0 rounded-md bg-ink/[0.07] hairline" transition={{ type: "spring", stiffness: 520, damping: 40 }} /> : null}
       {active ? <motion.span layoutId="nav-bar" className="absolute top-2 bottom-2 left-0 w-0.5 rounded-full bg-cyan" transition={{ type: "spring", stiffness: 520, damping: 40 }} /> : null}
       <Icon size={16} className={cn("relative", active ? "text-cyan" : "")} aria-hidden />
       <span className="relative">{item.label}</span>
@@ -43,7 +45,7 @@ function SystemStatus() {
   const rows = useSystemStatus();
   const overall = overallHealth(rows);
   return (
-    <div className="rounded-lg border border-line bg-white/2 p-3">
+    <div className="rounded-lg border border-line bg-ink/2 p-3">
       <div className="label mb-2.5">System status</div>
       <dl className="space-y-2 text-[12px]">
         <div className="flex items-center justify-between gap-2">
@@ -69,10 +71,10 @@ function SystemStatus() {
 function Sidebar() {
   const pathname = usePathname();
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col border-r border-line bg-base-1 lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col border-r border-line bg-base lg:flex">
       <div className="flex h-14 items-center border-b border-line px-5">
         <Link href="/" aria-label="COMMS home">
-          <Logo />
+          <Logo tone="black" />
         </Link>
       </div>
       <nav aria-label="Application" className="flex-1 space-y-0.5 overflow-y-auto p-3">
@@ -93,7 +95,7 @@ function Notifications() {
   return (
     <Popover
       label="Notifications"
-      triggerClassName="relative grid size-9 place-items-center rounded-md text-ink-2 transition-colors hover:bg-white/6 hover:text-ink"
+      triggerClassName="relative grid size-9 place-items-center rounded-md text-ink-2 transition-colors hover:bg-ink/6 hover:text-ink"
       trigger={
         <>
           <Bell size={16} />
@@ -111,7 +113,7 @@ function Notifications() {
           {DATA_MODE !== "demo" ? <EventTimeline limit={4} className="max-h-72 overflow-y-auto" /> : null}
           <ul className={DATA_MODE === "demo" ? undefined : "hidden"}>
             {items.map((e) => (
-              <li key={e.id} className="rounded-md px-2.5 py-2 hover:bg-white/4">
+              <li key={e.id} className="rounded-md px-2.5 py-2 hover:bg-ink/4">
                 <div className="flex items-center justify-between font-mono text-[11px] text-ink-3">
                   <span>{e.symbol}</span>
                   <span>{formatClock(e.timestamp)}</span>
@@ -128,7 +130,7 @@ function Notifications() {
               </li>
             ))}
           </ul>
-          <Link href="/events" className="mt-1 block rounded-md px-2.5 py-2 text-[12.5px] text-cyan hover:bg-white/4">
+          <Link href="/app/events" className="mt-1 block rounded-md px-2.5 py-2 text-[12.5px] text-cyan hover:bg-ink/4">
             Open event stream →
           </Link>
         </div>
@@ -139,20 +141,19 @@ function Notifications() {
 
 function Topbar({ onMenu }: { onMenu: () => void }) {
   const { setOpen } = useCommandPalette();
-  const chainHealth = useSliceHealthFor("chain");
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-base/80 px-4 backdrop-blur-xl lg:px-6">
-      <button type="button" onClick={onMenu} aria-label="Open navigation" className="grid size-9 place-items-center rounded-md text-ink-2 hover:bg-white/6 lg:hidden">
+      <button type="button" onClick={onMenu} aria-label="Open navigation" className="grid size-9 place-items-center rounded-md text-ink-2 hover:bg-ink/6 lg:hidden">
         <Menu size={18} />
       </button>
       <Link href="/" aria-label="COMMS home" className="lg:hidden">
-        <Logo size={22} />
+        <Logo tone="black" size={22} />
       </Link>
 
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="hidden h-9 max-w-md flex-1 items-center gap-2.5 rounded-md border border-line bg-white/3 px-3 text-left text-[13px] text-ink-3 transition-colors hover:border-line-2 lg:flex"
+        className="hidden h-9 max-w-md flex-1 items-center gap-2.5 rounded-md border border-line bg-ink/3 px-3 text-left text-[13px] text-ink-3 transition-colors hover:border-line-2 lg:flex"
         aria-label="Search assets, addresses, policies, events and docs"
       >
         <Search size={14} />
@@ -165,64 +166,21 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
 
       <div className="ml-auto flex items-center gap-1.5">
         <ModeBadge className="hidden sm:inline-flex" />
-        <button type="button" onClick={() => setOpen(true)} aria-label="Search" className="grid size-9 place-items-center rounded-md text-ink-2 hover:bg-white/6 lg:hidden">
+        <button type="button" onClick={() => setOpen(true)} aria-label="Search" className="grid size-9 place-items-center rounded-md text-ink-2 hover:bg-ink/6 lg:hidden">
           <Search size={16} />
         </button>
 
-        <Popover
-          label="Network"
-          triggerClassName="hidden h-9 items-center gap-2 rounded-md border border-line px-2.5 font-mono text-[11.5px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink sm:flex"
-          trigger={
-            <>
-              <HealthTag health={chainHealth} dotOnly /> RH CHAIN <ChevronDown size={12} />
-            </>
-          }
-          panelClassName="w-80 p-3"
-        >
-          {() => <SystemStatusPanel compact />}
-        </Popover>
+        <NetworkPill className="hidden md:inline-flex" />
 
         <Notifications />
 
-        <Popover
-          label="Organization menu"
-          triggerClassName="flex h-9 items-center gap-2 rounded-md pr-1.5 pl-1 transition-colors hover:bg-white/6"
-          trigger={
-            <>
-              <span aria-hidden className="grid size-7 place-items-center rounded-md bg-linear-to-br from-cyan/30 to-iris/30 font-mono text-[11px] font-medium text-ink hairline">DP</span>
-              <span className="hidden text-left leading-tight md:block">
-                <span className="block text-[12.5px] text-ink">Demo Protocol</span>
-                <span className="block font-mono text-[10px] text-ink-3">Organization</span>
-              </span>
-            </>
-          }
-          panelClassName="w-60"
-        >
-          {(close) => (
-            <ul>
-              <li className="px-2.5 py-2">
-                <div className="text-[13px] text-ink">Demo Protocol</div>
-                <div className="font-mono text-[11px] text-ink-3">demo@protocol.example</div>
-              </li>
-              <li>
-                <Link href="/settings" onClick={close} className="block rounded-md px-2.5 py-2 text-[13px] text-ink-2 hover:bg-white/5 hover:text-ink">
-                  Settings
-                </Link>
-              </li>
-              <li>
-                <Link href="/" onClick={close} className="block rounded-md px-2.5 py-2 text-[13px] text-ink-2 hover:bg-white/5 hover:text-ink">
-                  Back to website
-                </Link>
-              </li>
-            </ul>
-          )}
-        </Popover>
+        <WalletButton />
       </div>
     </header>
   );
 }
 
-const BOTTOM = ["/overview", "/assets", "/policies", "/events"];
+const BOTTOM = ["/app", "/app/assets", "/app/eligibility", "/app/events"];
 
 function BottomNav({ onMore }: { onMore: () => void }) {
   const pathname = usePathname();
@@ -273,7 +231,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 href={n.href}
                 onClick={() => setMenu(false)}
                 aria-current={pathname === n.href ? "page" : undefined}
-                className={cn("flex h-11 items-center gap-3 rounded-md px-3 text-[15px]", isActive(pathname, n) ? "bg-white/[0.07] text-ink" : "text-ink-2")}
+                className={cn("flex h-11 items-center gap-3 rounded-md px-3 text-[15px]", isActive(pathname, n) ? "bg-ink/[0.07] text-ink" : "text-ink-2")}
               >
                 <n.icon size={18} className={isActive(pathname, n) ? "text-cyan" : ""} aria-hidden />
                 {n.label}

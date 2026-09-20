@@ -74,7 +74,7 @@ export function LiveDecisions({ initial }: { initial: EligibilityEvent[] }) {
             transition={{ duration: 0.4 }}
             className="overflow-hidden border-b border-line last:border-0"
           >
-            <Link href={`/assets/${e.address}`} className="grid grid-cols-[62px_46px_1fr] items-center gap-x-3 px-4 py-2.5 font-mono text-[11.5px] transition-colors hover:bg-white/3 sm:grid-cols-[62px_52px_1fr_auto]">
+            <Link href={`/app/assets/${e.address}`} className="grid grid-cols-[62px_46px_1fr] items-center gap-x-3 px-4 py-2.5 font-mono text-[11.5px] transition-colors hover:bg-ink/3 sm:grid-cols-[62px_52px_1fr_auto]">
               <span className="text-ink-4 tabular">{formatClock(e.timestamp)}</span>
               <span className="text-ink">{e.symbol}</span>
               <span className="flex items-center gap-1.5">

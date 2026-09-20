@@ -5,7 +5,7 @@
  */
 import { HttpError, requestJson, type Timed } from "@/lib/data/request";
 
-const BASE = process.env.BLOCKSCOUT_API_BASE ?? "https://robinhoodchain.blockscout.com/api/v2";
+const BASE = process.env.BLOCKSCOUT_API_URL || process.env.BLOCKSCOUT_API_BASE || "https://robinhoodchain.blockscout.com/api/v2";
 
 export interface ContractMeta {
   /** true only if Blockscout says the source is verified */

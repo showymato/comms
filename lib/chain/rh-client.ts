@@ -6,7 +6,7 @@
 import { requestJson, type Timed } from "@/lib/data/request";
 import { CHAIN_ID } from "@/lib/data/config";
 
-export const RPC_URL = process.env.RH_CHAIN_RPC_URL ?? "https://rpc.mainnet.chain.robinhood.com";
+export const RPC_URL = process.env.ROBINHOOD_RPC_URL || process.env.RH_CHAIN_RPC_URL || "https://rpc.mainnet.chain.robinhood.com";
 
 interface RpcResponse<T> {
   id: number;
@@ -16,7 +16,7 @@ interface RpcResponse<T> {
 
 let seq = 1;
 
-async function rpcBatch(calls: Array<{ method: string; params: unknown[] }>): Promise<Timed<Array<RpcResponse<unknown>>>> {
+export async function rpcBatch(calls: Array<{ method: string; params: unknown[] }>): Promise<Timed<Array<RpcResponse<unknown>>>> {
   const body = calls.map((c) => ({ jsonrpc: "2.0", id: seq++, ...c }));
   const t = await requestJson<Array<RpcResponse<unknown>>>(RPC_URL, {
     method: "POST",

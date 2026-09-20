@@ -14,9 +14,9 @@ export function LogoMark({
   tone?: "white" | "black" | "accent";
   className?: string;
 }) {
-  const stroke = tone === "black" ? "#05070A" : "#F5F7FA";
-  const decision = tone === "accent" ? "#54D6FF" : stroke;
-  const hole = tone === "black" ? "#FFFFFF" : "#05070A";
+  const stroke = tone === "black" ? "#0A0A0A" : "#F5F5F2";
+  const decision = tone === "accent" ? "#00C8FF" : stroke;
+  const hole = tone === "black" ? "#F5F5F2" : "#0A0A0A";
   return (
     <svg
       width={size}
@@ -51,7 +51,7 @@ export function Logo({
   className?: string;
 }) {
   return (
-    <span className={cn("inline-flex items-center gap-2.5", tone === "black" ? "text-[#05070A]" : "text-ink", className)}>
+    <span className={cn("inline-flex items-center gap-2.5", "text-ink", className)}>
       <LogoMark size={size} tone={tone} />
       <span className="text-[15px] font-semibold tracking-[0.22em]">COMMS</span>
     </span>

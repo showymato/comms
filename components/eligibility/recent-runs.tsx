@@ -31,7 +31,7 @@ export function RecentRuns() {
           return (
             <li key={r.id} className="border-b border-line last:border-0">
               {known ? (
-                <Link href={`/assets/${r.address}`} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/3">{inner}</Link>
+                <Link href={`/app/assets/${r.address}`} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-ink/3">{inner}</Link>
               ) : (
                 <div className="flex items-center gap-3 px-4 py-2.5">{inner}</div>
               )}
