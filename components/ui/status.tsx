@@ -81,7 +81,7 @@ export function LiveDot({ status = "ELIGIBLE", className }: { status?: Eligibili
   );
 }
 
-const RESULT_TEXT: Record<CheckResult, string> = { PASS: "PASS", FAIL: "FAIL", UNKNOWN: "NO DATA" };
+const RESULT_TEXT: Record<CheckResult, string> = { PASS: "PASS", FAIL: "FAIL", UNKNOWN: "UNKNOWN" };
 
 /** Compact per-check result: glyph + word. `text` overrides the word (e.g. NO / NONE / YES). */
 export function ResultTag({ result, text, className }: { result: CheckResult; text?: string; className?: string }) {

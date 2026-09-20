@@ -1,0 +1,11 @@
+import { chromium } from "file:///C:/Users/kh491/OneDrive/Desktop/landings/nova/node_modules/playwright/index.mjs";
+const b = await chromium.launch();
+const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+await p.goto("http://localhost:3277/assets/0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9", { waitUntil: "domcontentloaded" });
+await p.waitForSelector("text=Check breakdown", { timeout: 30000 });
+await p.locator('button[aria-label^="Token paused"]').click();
+await p.waitForTimeout(1200);
+await p.screenshot({ path: "shots/live/drawer-settled.png" });
+const r = await p.evaluate(() => { const d = document.querySelector('[role="dialog"]'); const b = d?.getBoundingClientRect(); return b ? { right: Math.round(b.right), w: Math.round(b.width), vw: innerWidth } : null; });
+console.log(JSON.stringify(r));
+await b.close();

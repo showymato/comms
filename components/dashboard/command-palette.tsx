@@ -21,7 +21,8 @@ import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Asset, EventType } from "@/types";
-import { assetService, policyService } from "@/lib/services";
+import { policyService } from "@/lib/services";
+import { useAssets } from "@/hooks/use-live";
 import { useStore } from "@/hooks/use-store";
 import { useDialog, useMounted } from "@/hooks/use-utils";
 import { shortAddress } from "@/lib/format";
@@ -102,18 +103,9 @@ function Palette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
-  const [assets, setAssets] = useState<Asset[]>([]);
+  const { assets } = useAssets();
   const policies = useStore(policyService.state);
   useDialog(open, onClose, panelRef);
-
-  useEffect(() => {
-    if (!open) return;
-    let alive = true;
-    assetService.list().then((a) => alive && setAssets(a));
-    return () => {
-      alive = false;
-    };
-  }, [open]);
 
   const items = useMemo<Item[]>(() => {
     const query = q.trim().toLowerCase();

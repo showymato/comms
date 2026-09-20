@@ -1,3 +1,4 @@
+import { DATA_MODE } from "@/lib/data/config";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 
@@ -34,7 +35,7 @@ export function Footer() {
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-2 px-5 py-5 font-mono text-[11px] text-ink-4 lg:px-10">
           <span>© 2026 COMMS</span>
-          <span>All assets, addresses and figures in this demo are simulated.</span>
+          <span>{DATA_MODE === "demo" ? "All assets, addresses and figures in this demo are simulated." : "Live data from Robinhood and Robinhood Chain. Sections marked DEMO DATA are illustrative."}</span>
         </div>
       </div>
     </footer>

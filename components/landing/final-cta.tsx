@@ -1,6 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { LiveDot } from "@/components/ui/status";
+import { SystemLine } from "@/components/live/system-line";
 import { Reveal } from "@/components/ui/motion-bits";
 import { prng } from "@/lib/prng";
 
@@ -16,12 +16,12 @@ const LINKS = NODES.flatMap((a, i) =>
 const PATHS = LINKS.filter((_, i) => i % 5 === 0).slice(0, 9);
 
 const CHIPS = [
-  { t: "AAPL  ✓ ELIGIBLE", c: "text-eligible", y: "14%", dur: 46, delay: -6 },
-  { t: "TSLA  ◐ CONDITIONAL", c: "text-conditional", y: "30%", dur: 58, delay: -30 },
-  { t: "NFLX  ✕ INELIGIBLE", c: "text-ineligible", y: "62%", dur: 52, delay: -14 },
-  { t: "AMD  ? UNKNOWN", c: "text-unknown", y: "78%", dur: 64, delay: -44 },
-  { t: "MSFT  ✓ ELIGIBLE", c: "text-eligible", y: "46%", dur: 70, delay: -52 },
-  { t: "webhook.delivered  200", c: "text-cyan", y: "88%", dur: 56, delay: -20 },
+  { t: "0x…  ✓ ELIGIBLE", c: "text-eligible", y: "14%", dur: 46, delay: -6 },
+  { t: "0x…  ◐ CONDITIONAL", c: "text-conditional", y: "30%", dur: 58, delay: -30 },
+  { t: "0x…  ✕ INELIGIBLE", c: "text-ineligible", y: "62%", dur: 52, delay: -14 },
+  { t: "0x…  ? UNKNOWN", c: "text-unknown", y: "78%", dur: 64, delay: -44 },
+  { t: "0x…  ✓ ELIGIBLE", c: "text-eligible", y: "46%", dur: 70, delay: -52 },
+  { t: "decision.evaluated", c: "text-cyan", y: "88%", dur: 56, delay: -20 },
 ];
 
 export function FinalCta() {
@@ -85,20 +85,7 @@ export function FinalCta() {
         </Reveal>
 
         <Reveal delay={0.1} className="mt-20">
-          <div role="status" className="flex flex-col items-center gap-4">
-            <span className="label !text-eligible flex items-center gap-2">
-              <LiveDot /> System operational
-            </span>
-            <ul className="flex flex-wrap justify-center gap-x-8 gap-y-2 font-mono text-[11px] tracking-[0.1em] text-ink-2 uppercase">
-              {["Eligibility engine", "API", "Event indexer"].map((s) => (
-                <li key={s} className="flex items-center gap-2">
-                  <span aria-hidden className="size-1.5 rounded-full bg-eligible" />
-                  {s}
-                </li>
-              ))}
-            </ul>
-            <span className="font-mono text-[10.5px] text-ink-4">Demo environment · status shown is illustrative</span>
-          </div>
+          <SystemLine />
         </Reveal>
       </div>
     </section>

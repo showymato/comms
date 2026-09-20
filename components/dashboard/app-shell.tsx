@@ -1,15 +1,21 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Bell, Check, ChevronDown, Menu, Search } from "lucide-react";
+import { Bell, ChevronDown, Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useCommandPalette } from "@/components/dashboard/command-palette";
 import { Logo } from "@/components/ui/logo";
 import { Popover } from "@/components/ui/popover";
-import { DemoTag, Kbd } from "@/components/ui/primitives";
-import { LiveDot, StatusGlyph } from "@/components/ui/status";
+import { Kbd } from "@/components/ui/primitives";
+import { HealthTag, ModeBadge } from "@/components/live/badges";
+import { ChainBlock, SystemStatusPanel } from "@/components/live/status-panel";
+import { EventTimeline } from "@/components/live/event-timeline";
+import { overallHealth, useSliceHealthFor, useSystemStatus } from "@/hooks/use-system-status";
+import { useLive } from "@/hooks/use-live";
+import { DATA_MODE } from "@/lib/data/config";
+import { StatusGlyph } from "@/components/ui/status";
 import { Drawer } from "@/components/ui/overlay";
 import { formatClock } from "@/lib/format";
 import { seedEvents } from "@/data/events";
@@ -34,22 +40,27 @@ function SideLink({ item, active }: { item: NavItem; active: boolean }) {
 }
 
 function SystemStatus() {
+  const rows = useSystemStatus();
+  const overall = overallHealth(rows);
   return (
     <div className="rounded-lg border border-line bg-white/2 p-3">
       <div className="label mb-2.5">System status</div>
       <dl className="space-y-2 text-[12px]">
-        <div className="flex items-center justify-between">
-          <dt className="text-ink-3">Network</dt>
-          <dd className="flex items-center gap-1.5 font-mono text-ink-2">
-            <LiveDot /> RH CHAIN
+        <div className="flex items-center justify-between gap-2">
+          <dt className="text-ink-3">Data</dt>
+          <dd>
+            <HealthTag health={overall} />
           </dd>
         </div>
-        <div className="flex items-center justify-between">
-          <dt className="text-ink-3">API</dt>
-          <dd className="flex items-center gap-1.5 font-mono text-eligible">
-            <LiveDot /> OPERATIONAL
-          </dd>
+        <div className="flex items-center justify-between gap-2">
+          <dt className="text-ink-3">Mode</dt>
+          <dd className="font-mono text-[11px] text-ink-2">{DATA_MODE.toUpperCase()}</dd>
         </div>
+        {DATA_MODE !== "demo" ? (
+          <div className="pt-1">
+            <ChainBlock className="flex-wrap" />
+          </div>
+        ) : null}
       </dl>
     </div>
   );
@@ -78,6 +89,7 @@ function Sidebar() {
 
 function Notifications() {
   const items = seedEvents().slice(0, 4);
+  const liveEvents = useLive((x) => x.events);
   return (
     <Popover
       label="Notifications"
@@ -85,7 +97,7 @@ function Notifications() {
       trigger={
         <>
           <Bell size={16} />
-          <span aria-hidden className="absolute top-2 right-2 size-1.5 rounded-full bg-cyan" />
+          {DATA_MODE === "demo" || liveEvents.length > 0 ? <span aria-hidden className="absolute top-2 right-2 size-1.5 rounded-full bg-cyan" /> : null}
         </>
       }
       panelClassName="w-[340px]"
@@ -93,10 +105,11 @@ function Notifications() {
       {() => (
         <div>
           <div className="flex items-center justify-between px-2.5 pt-1.5 pb-2">
-            <span className="label !text-ink-2">Recent status changes</span>
-            <DemoTag />
+            <span className="label !text-ink-2">{DATA_MODE === "demo" ? "Recent status changes" : "Observed events"}</span>
+            <ModeBadge />
           </div>
-          <ul>
+          {DATA_MODE !== "demo" ? <EventTimeline limit={4} className="max-h-72 overflow-y-auto" /> : null}
+          <ul className={DATA_MODE === "demo" ? undefined : "hidden"}>
             {items.map((e) => (
               <li key={e.id} className="rounded-md px-2.5 py-2 hover:bg-white/4">
                 <div className="flex items-center justify-between font-mono text-[11px] text-ink-3">
@@ -126,6 +139,7 @@ function Notifications() {
 
 function Topbar({ onMenu }: { onMenu: () => void }) {
   const { setOpen } = useCommandPalette();
+  const chainHealth = useSliceHealthFor("chain");
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-base/80 px-4 backdrop-blur-xl lg:px-6">
       <button type="button" onClick={onMenu} aria-label="Open navigation" className="grid size-9 place-items-center rounded-md text-ink-2 hover:bg-white/6 lg:hidden">
@@ -150,7 +164,7 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
       </button>
 
       <div className="ml-auto flex items-center gap-1.5">
-        <DemoTag className="hidden sm:inline-flex" />
+        <ModeBadge className="hidden sm:inline-flex" />
         <button type="button" onClick={() => setOpen(true)} aria-label="Search" className="grid size-9 place-items-center rounded-md text-ink-2 hover:bg-white/6 lg:hidden">
           <Search size={16} />
         </button>
@@ -160,19 +174,12 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
           triggerClassName="hidden h-9 items-center gap-2 rounded-md border border-line px-2.5 font-mono text-[11.5px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink sm:flex"
           trigger={
             <>
-              <LiveDot /> RH CHAIN <ChevronDown size={12} />
+              <HealthTag health={chainHealth} dotOnly /> RH CHAIN <ChevronDown size={12} />
             </>
           }
-          panelClassName="w-56"
+          panelClassName="w-80 p-3"
         >
-          {(close) => (
-            <button type="button" onClick={close} className="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-[13px] text-ink hover:bg-white/5">
-              <span className="flex items-center gap-2 font-mono text-[12px]">
-                <LiveDot /> RH Chain
-              </span>
-              <Check size={14} className="text-cyan" />
-            </button>
-          )}
+          {() => <SystemStatusPanel compact />}
         </Popover>
 
         <Notifications />

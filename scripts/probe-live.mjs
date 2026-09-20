@@ -1,0 +1,12 @@
+import { chromium } from "file:///C:/Users/kh491/OneDrive/Desktop/landings/nova/node_modules/playwright/index.mjs";
+const b = await chromium.launch();
+const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+p.on("console", (m) => console.log("console", m.type(), m.text().slice(0, 300)));
+p.on("pageerror", (e) => console.log("pageerror", e.message.slice(0, 300)));
+p.on("requestfailed", (r) => console.log("reqfailed", r.url(), r.failure()?.errorText));
+p.on("response", (r) => r.url().includes("/api/") && console.log("resp", r.status(), r.url()));
+await p.goto((process.argv[2] || "http://localhost:3277/assets"), { waitUntil: "domcontentloaded" });
+await p.waitForTimeout(9000);
+console.log((await p.locator("body").innerText()).slice(0, 1200));
+await p.screenshot({ path: "shots/live-probe.png" });
+await b.close();

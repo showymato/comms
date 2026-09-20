@@ -12,6 +12,12 @@ import { CopyButton } from "@/components/ui/code-block";
 import { Drawer } from "@/components/ui/overlay";
 import { Panel, PanelHeader } from "@/components/ui/primitives";
 import { ResultTag, StatusGlyph } from "@/components/ui/status";
+import { ContractInspection } from "@/components/live/contract-inspection";
+import { CorporateActions } from "@/components/live/corporate-actions";
+import { EventTimeline } from "@/components/live/event-timeline";
+import { FreshnessTag, HealthTag, SourceBadge } from "@/components/live/badges";
+import { PricePanel } from "@/components/live/price-panel";
+import { DATA_MODE } from "@/lib/data/config";
 import { eligibilityService, policyService } from "@/lib/services";
 import { useStore } from "@/hooks/use-store";
 import { formatTimestamp, formatUsd } from "@/lib/format";
@@ -57,6 +63,13 @@ export function AssetDetail({ asset, history }: { asset: Asset; history: Eligibi
             <span className="text-ink-4">
               Updated <Ago sec={asset.updatedAgoSec} />
             </span>
+            {asset.live ? (
+              <span className="flex items-center gap-1.5">
+                <span className="text-ink-4">STATUS</span>
+                <span className={asset.live.lifecycle === "ACTIVE" ? "text-eligible" : asset.live.lifecycle === "INACTIVE" ? "text-ineligible" : "text-unknown"}>● {asset.live.lifecycle}</span>
+                <SourceBadge source="ROBINHOOD" at={asset.live.registryFetchedAt} note={`Robinhood /assets status = ${asset.live.rawStatus || "absent"}`} />
+              </span>
+            ) : null}
           </div>
         </div>
         <div>
@@ -119,11 +132,28 @@ export function AssetDetail({ asset, history }: { asset: Asset; history: Eligibi
               </div>
               <div className="border-t border-line pt-4 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-8">
                 <div className="label mb-1.5">Eligibility score</div>
-                <div className="text-[36px] leading-none font-semibold tracking-[-0.04em] text-ink-2 tabular">{result.score ?? "—"}</div>
-                <p className="mt-2 max-w-[150px] text-[11.5px] leading-snug text-ink-4">Supplementary. The status above is the decision.</p>
+                {DATA_MODE === "demo" ? (
+                  <div className="text-[36px] leading-none font-semibold tracking-[-0.04em] text-ink-2 tabular">{result.score ?? "—"}</div>
+                ) : (
+                  <div className="font-mono text-[13px] leading-none text-ink-3">NOT AVAILABLE</div>
+                )}
+                <p className="mt-2 max-w-[150px] text-[11.5px] leading-snug text-ink-4">
+                  {DATA_MODE === "demo" ? "Supplementary. The status above is the decision." : "No verified liquidity source, so a score cannot be justified. The status is the decision."}
+                </p>
+                {DATA_MODE !== "demo" ? (
+                  <p className="mt-3 flex items-center gap-1.5 font-mono text-[10.5px] text-ink-4">
+                    Last evaluated <FreshnessTag at={result.evaluatedAt} kind="registry" />
+                  </p>
+                ) : null}
               </div>
             </div>
           </motion.section>
+
+          {asset.live ? (
+            <Panel aria-label="Live price">
+              <PricePanel asset={asset} />
+            </Panel>
+          ) : null}
 
           {/* diagnostic timeline */}
           <Panel>
@@ -191,9 +221,16 @@ export function AssetDetail({ asset, history }: { asset: Asset; history: Eligibi
               {[
                 ["Underlying", asset.underlying],
                 ["Network", "RH Chain"],
-                ["Liquidity", formatUsd(asset.state.liquidityUsd.value)],
+                ["Liquidity", asset.state.liquidityUsd.value === null ? "UNKNOWN" : formatUsd(asset.state.liquidityUsd.value)],
                 ["Liquidity source", asset.state.liquidityUsd.value === null ? "—" : asset.state.liquidityUsd.source],
-                ["Last state update", formatTimestamp(asset.state.transferEnabled.timestamp)],
+                ...(asset.live
+                  ? [
+                      ["Multiplier", asset.live.multiplier],
+                      ["Pending multiplier", asset.live.pendingMultiplier ?? "NONE"],
+                      ["ISIN", asset.live.isin ?? "UNKNOWN"],
+                      ["Registry fetched", formatTimestamp(asset.live.registryFetchedAt)],
+                    ]
+                  : [["Last state update", formatTimestamp(asset.state.transferEnabled.timestamp)]]),
               ].map(([k, v]) => (
                 <div key={k} className="flex items-baseline justify-between gap-4 px-4 py-2.5">
                   <dt className="text-ink-3">{k}</dt>
@@ -203,12 +240,23 @@ export function AssetDetail({ asset, history }: { asset: Asset; history: Eligibi
             </dl>
           </Panel>
 
-          <Panel id="history" className="scroll-mt-20">
-            <PanelHeader title="Eligibility history" meta={<span className="font-mono">{history.length} changes</span>} />
-            <div className="p-4">
-              <HistoryTimeline events={history} />
-            </div>
-          </Panel>
+          {asset.live ? (
+            <>
+              <ContractInspection asset={asset} />
+              <CorporateActions symbol={asset.symbol} />
+              <Panel id="history" className="scroll-mt-20">
+                <PanelHeader title="Observed events" meta={<HealthTag health="ON_DEMAND" />} />
+                <EventTimeline symbol={asset.symbol} limit={12} />
+              </Panel>
+            </>
+          ) : (
+            <Panel id="history" className="scroll-mt-20">
+              <PanelHeader title="Eligibility history" meta={<span className="font-mono">{history.length} changes · demo</span>} />
+              <div className="p-4">
+                <HistoryTimeline events={history} />
+              </div>
+            </Panel>
+          )}
 
           <Button href={`/events?asset=${asset.symbol}`} variant="secondary" className="w-full">
             View events for {asset.symbol} <ChevronsRight size={14} />

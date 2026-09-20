@@ -12,6 +12,9 @@ import { eligibilityService, policyService } from "@/lib/services";
 import { useStore } from "@/hooks/use-store";
 import { lifecycle, oracleFlag, redemptionFlag, toneClass, transferFlag } from "@/lib/asset-view";
 import { shortAddress } from "@/lib/format";
+import { DATA_MODE } from "@/lib/data/config";
+import { HealthTag } from "@/components/live/badges";
+import { useSliceHealthFor } from "@/hooks/use-system-status";
 import { STATUS, STATUS_ORDER } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +30,7 @@ const SORTERS: Record<SortKey, (a: Row, b: Row) => number> = {
   asset: (a, b) => a.asset.name.localeCompare(b.asset.name),
   symbol: (a, b) => a.asset.symbol.localeCompare(b.asset.symbol),
   eligibility: (a, b) => ORDER[a.result.status] - ORDER[b.result.status],
-  score: (a, b) => (a.result.score ?? -1) - (b.result.score ?? -1),
+  score: (a, b) => (DATA_MODE === "demo" ? (a.result.score ?? -1) - (b.result.score ?? -1) : (a.asset.live?.price?.mid ?? -1) - (b.asset.live?.price?.mid ?? -1)),
   updated: (a, b) => a.asset.updatedAgoSec - b.asset.updatedAgoSec,
 };
 
@@ -48,6 +51,8 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
   const [cursor, setCursor] = useState(0);
 
   const policy = policies.find((p) => p.id === policyId) ?? policies[0];
+  const registryHealth = useSliceHealthFor("registry");
+  const isLiveData = DATA_MODE !== "demo";
 
   const rows = useMemo<Row[]>(() => assets.map((asset) => ({ asset, result: eligibilityService.evaluate(asset, policy) })), [assets, policy]);
 
@@ -179,14 +184,14 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
       <Panel className="hidden overflow-hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] border-collapse text-[13px]">
-            <caption className="sr-only">Supported Stock Tokens with collateral eligibility under policy {policy.name}. Demo data.</caption>
+            <caption className="sr-only">Supported Stock Tokens with collateral eligibility under policy {policy.name}. {isLiveData ? "Live Robinhood registry." : "Demo data."}</caption>
             <thead className="border-b border-line bg-white/2">
               <tr>
                 <SortHeader k="asset" sort={sort} onSort={toggleSort}>Asset</SortHeader>
                 <SortHeader k="symbol" sort={sort} onSort={toggleSort}>Symbol</SortHeader>
                 <SortHeader sort={sort} onSort={toggleSort}>Status</SortHeader>
                 <SortHeader k="eligibility" sort={sort} onSort={toggleSort}>Eligibility</SortHeader>
-                <SortHeader k="score" className="text-right" sort={sort} onSort={toggleSort}>Score</SortHeader>
+                <SortHeader k="score" className="text-right" sort={sort} onSort={toggleSort}>{isLiveData ? "Price (raw)" : "Score"}</SortHeader>
                 <SortHeader sort={sort} onSort={toggleSort}>Oracle</SortHeader>
                 <SortHeader sort={sort} onSort={toggleSort}>Transfer</SortHeader>
                 <SortHeader sort={sort} onSort={toggleSort}>Redemption</SortHeader>
@@ -229,7 +234,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
                     className="group cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-white/[0.035] focus-visible:bg-white/[0.06] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan"
                   >
                     <td className="py-2.5 pr-3 pl-4">
-                      <Link href={`/assets/${a.address}`} tabIndex={-1} className="block">
+                      <Link href={`/assets/${a.address}`} prefetch={false} tabIndex={-1} className="block">
                         <span className="block text-ink">{a.name}</span>
                         <span className="block font-mono text-[11px] text-ink-3">{shortAddress(a.address)}</span>
                       </Link>
@@ -237,7 +242,13 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
                     <td className="px-3 font-mono text-[12.5px] font-medium text-ink">{a.symbol}</td>
                     <td className="px-3 font-mono text-[11.5px]"><span className={toneClass[life.tone]}>{life.text}</span></td>
                     <td className="px-3"><StatusBadge status={r.status} size="sm" /></td>
-                    <td className="px-3 text-right font-mono text-[13px] text-ink tabular">{r.score ?? <span className="text-ink-4">—</span>}</td>
+                    <td className="px-3 text-right font-mono text-[13px] text-ink tabular">
+                      {isLiveData ? (
+                        a.live?.price ? `$${a.live.price.mid.toFixed(2)}` : <span className="text-ink-4">UNKNOWN</span>
+                      ) : (
+                        (r.score ?? <span className="text-ink-4">—</span>)
+                      )}
+                    </td>
                     <td className={cn("px-3 font-mono text-[11.5px]", toneClass[or.tone])}>{or.text}</td>
                     <td className={cn("px-3 font-mono text-[11.5px]", toneClass[tr.tone])}>{tr.text}</td>
                     <td className={cn("px-3 font-mono text-[11.5px]", toneClass[rd.tone])}>{rd.text}</td>
@@ -250,7 +261,9 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
         </div>
         {visible.length === 0 ? <Empty onClear={clear} filtered={filtered} /> : null}
         <div className="flex items-center justify-between border-t border-line px-4 py-2.5 font-mono text-[11px] text-ink-3">
-          <span>{visible.length} of {rows.length} assets · demo data</span>
+          <span className="flex items-center gap-3">
+            {visible.length} of {rows.length} assets {isLiveData ? <HealthTag health={registryHealth} /> : <span>· demo data</span>}
+          </span>
           <span className="hidden items-center gap-3 lg:flex">
             <span className="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
             <span className="flex items-center gap-1"><Kbd>↵</Kbd> open</span>
@@ -267,7 +280,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
           const rd = redemptionFlag(a);
           return (
             <li key={a.address}>
-              <Link href={`/assets/${a.address}`} className="block rounded-lg border border-line bg-surface/80 p-4 active:bg-surface-2">
+              <Link href={`/assets/${a.address}`} prefetch={false} className="block rounded-lg border border-line bg-surface/80 p-4 active:bg-surface-2">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-[15px] font-medium text-ink">{a.symbol}</div>
@@ -276,7 +289,7 @@ export function AssetExplorer({ assets }: { assets: Asset[] }) {
                   <StatusBadge status={r.status} />
                 </div>
                 <dl className="mt-3.5 grid grid-cols-4 gap-2 border-t border-line pt-3 font-mono text-[11px]">
-                  {[["Score", r.score ?? "—", "text-ink"], ["Oracle", or.text, toneClass[or.tone]], ["Transfer", tr.text, toneClass[tr.tone]], ["Redeem", rd.text, toneClass[rd.tone]]].map(([k, v, c]) => (
+                  {[[isLiveData ? "Price" : "Score", isLiveData ? (a.live?.price ? `$${a.live.price.mid.toFixed(2)}` : "UNKNOWN") : (r.score ?? "—"), "text-ink"], ["Oracle", or.text, toneClass[or.tone]], ["Transfer", tr.text, toneClass[tr.tone]], ["Redeem", rd.text, toneClass[rd.tone]]].map(([k, v, c]) => (
                     <div key={String(k)}>
                       <dt className="text-ink-4">{k}</dt>
                       <dd className={cn("mt-0.5", String(c))}>{v}</dd>

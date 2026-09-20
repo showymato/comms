@@ -1,34 +1,59 @@
 # COMMS — project state
 
-Collateral-eligibility layer for tokenized stocks. Next 16 + React 19 + Tailwind 4 + `motion`. Demo data only.
+Collateral-eligibility layer for tokenized stocks. Next 16 + React 19 + Tailwind 4 + `motion`.
+Runs on **live Robinhood data by default**; a labelled demo dataset is still available.
 
-## Verify
-- `npm run verify` — tsc, eslint, vitest (11 engine tests), production build.
-- Browser passes (need the nova project's Playwright; run from PowerShell, not Git Bash):
-  `npx next start -p 3277`, then `node scripts/shoot-app.mjs http://localhost:3277 1440 900 shots/app` (29 checks),
-  `... 390 844 shots/mobile` (24 checks), `node scripts/shoot-landing.mjs http://localhost:3277 1440 900`.
-  `scripts/find-overflow.mjs`, `bisect-overflow.mjs`, `probe.mjs` chase mobile overflow.
-- Ports 3100/3220 are often taken by other projects. Use 3277.
+## Data modes — `NEXT_PUBLIC_DATA_MODE` (see `.env.example`)
+- `live` (default): Robinhood registry / prices / corporate actions + Robinhood Chain (id 4663) contract reads. Anything COMMS cannot verify is **UNKNOWN**.
+- `hybrid`: live data; checks with no live source are filled with values whose evidence source is `DEMO` (badged everywhere).
+- `demo`: the built-in simulated dataset (`data/`, `lib/services/mock/`). Shows `DEMO MODE`; makes no network calls.
 
 ## Architecture
-- `lib/engine.ts` — pure deterministic engine. Missing evidence → UNKNOWN (never guessed); hard failure → INELIGIBLE; liquidity < policy min → CONDITIONAL.
-- `lib/services/contracts.ts` — five service interfaces. `lib/services/mock/` — the only mock code. Swap wiring in `lib/services/index.ts` for a real API.
-- Routes: `/` landing; app shell at `/overview /assets /assets/[address] /eligibility /policies /events /webhooks /api-reference /sdk /settings`. ⌘K palette is global.
+```
+browser ─► LiveDataManager (lib/data/live-manager.ts, the only poller)
+              │  /api/assets /api/prices[/sym] /api/corporate-actions /api/chain /api/chain/paused /api/contracts/[addr]
+              ▼
+         Next route handlers (app/api/**)  ── cache + dedupe + stale-while-revalidate (lib/providers/serve.ts, server-data.ts)
+              ▼
+         providers (lib/providers/): robinhood · robinhoodChain (lib/chain/rh-client.ts) · blockscout · coingecko · alphaVantage
+              ▼
+         normalize.ts (pure) ─► lib/live/evidence.ts (pure: real evidence → Asset, missing → UNKNOWN) ─► lib/engine.ts (pure, unchanged)
+```
+- Polling (`lib/data/config.ts`): registry 5 min, prices 30 s (server cache 15 s), chain 15 s (server cache 8 s), paused() sweep 5 min in chunks of 40 (public RPC 429s above ~50 calls/batch), watched-asset contract read 60 s. Backoff ×2 to 5 min on failure, paused while the tab is hidden.
+- `LIVE` is only shown when data was fetched successfully inside its freshness window (`sliceHealth`), else LAST KNOWN / STALE / DEGRADED / OFFLINE.
+- Robinhood APIs send no CORS headers → all upstream calls go through `/api` routes. Optional keys (`COINGECKO_API_KEY`, `ALPHA_VANTAGE_API_KEY`) are server env vars only; only the last 4 chars are ever reported.
+- Live evidence actually available: asset status (Robinhood), `paused()` / bytecode / name / symbol / decimals / supply (chain, pinned block), quote freshness (Robinhood). **Not available → UNKNOWN**: transfer enabled, oracle healthy, redemption, transfer/issuer restrictions, collateral support, liquidity. So in live mode assets resolve to UNKNOWN (or INELIGIBLE if paused/inactive). Never ELIGIBLE without `hybrid`.
+- The score is `NOT AVAILABLE` outside demo mode (its formula weights liquidity, which no live source supplies). Confidence is `null` (not reported), never invented.
+- `/api/eligibility/check` (POST `{asset, policy}`) and `/api/eligibility/[address]` run the same engine server-side; the SDK playground calls it.
 
-## Assumptions to confirm against the real product spec (I only had the brief)
-- CONDITIONAL is produced only by liquidity below the policy minimum.
-- Score formula: 90 pts check pass-rate + 10 pts liquidity coverage (2× min). Placeholder; supplementary only.
-- Auth is shown as a bearer key; API host `api.comms.example`; no SDK package name is claimed.
-- Jurisdiction and Underlying-asset layers appear on the landing matrix without a result (no engine check exists for them).
+## Verify
+- `npm run verify` — tsc, eslint, vitest (32 tests: engine, normalizers, evidence→engine, cache, LIVE-label rule), production build.
+- Browser passes need the nova project's Playwright (run from a shell with `next start -p 3277` up):
+  `node scripts/live-check.mjs http://localhost:3277` (30 checks: real rows, price, onchain evidence, UNKNOWN, failure injection, mobile),
+  `node scripts/mode-check.mjs demo|hybrid <url>` (needs a dev server started with that `NEXT_PUBLIC_DATA_MODE`),
+  `node scripts/shoot-hero.mjs`, `node scripts/fps-ab.mjs`, and the older `shoot-app.mjs` / `shoot-landing.mjs` passes.
+- Ports 3100/3220 are often taken by other projects. Use 3277. Only one `next dev` per directory.
+- Windows: stop a stray server with `Get-NetTCPConnection -LocalPort 3277 | % { Stop-Process -Id $_.OwningProcess -Force }`.
 
-## Gotchas found
+## Routes
+`/` landing; app shell at `/overview /assets /assets/[address] /eligibility /policies /events /corporate-actions /webhooks /api-reference /sdk /settings` (Settings → Data sources). ⌘K palette is global.
+
+## Still demo-only (and labelled)
+Webhook console, the demo event stream, organization/settings rows, and the landing sections that walk through the engine with AAPL/TSLA/NFLX/AMD scenarios (each carries a DEMO DATA tag). COMMS has no webhook backend or persistent event store; observed events (price change, state change, eligibility change, new corporate action) exist for the current browser session only.
+
+## Motion system (partial)
+`lib/motion.ts` (easing/springs/depth/field density), `hooks/use-motion.ts` (useReducedMotion, useCountUp, useScrollProgress, useReveal, useScrollDirection), `components/landing/collateral-field.tsx` (hero canvas: cursor-reactive network, real request/response events spawn packets), compressing nav with active-section indicator and live status pill, rolling price digits, count-up on change. Not built: scroll-driven system activation / sticky storytelling, the spatial check matrix, spatial architecture with particles, the cinematic real-time replay, policy→decision causal line, API response morphing, easter egg, ambient telemetry text, section-specific transitions.
+
+## Gotchas
 - Color token `base` collides with Tailwind `text-base` (font size). Use `text-[#05070A]` for dark-on-light text.
 - Unlayered global CSS beats Tailwind utilities; global rules live in `@layer base`.
-- `sr-only` inside `overflow-x-auto` leaks page width unless the scroller is positioned (global rule handles it).
-- Single-column grids need `minmax(0,1fr)` (global `.grid > * {min-width:0}` handles it).
 - `useStore` is in `hooks/use-store.ts` ("use client"); `lib/store.ts` stays server-safe.
+- `useLive` passes `manager.initial` as the server snapshot — never `store.get()` — or hydration mismatches once data has arrived.
+- `LiveDataManager.stop()` must reset `inflight`, otherwise a StrictMode re-attach dedupes onto an aborted request and never fetches.
+- Blockscout (robinhoodchain.blockscout.com) answers our server with a Cloudflare bot challenge; verification therefore reports UNKNOWN. Not worked around.
+- Git Bash tool: heredocs containing an apostrophe fail to parse — write files with the Write tool.
 
-## Not done / not verified
-- No real chain, oracle or backend. Nothing committed (repo is the home-directory repo).
-- Reduced-motion path is implemented but was not exercised in a browser.
-- Screen-reader behaviour not tested with a real reader; keyboard paths (palette, table nav, drawers, Esc) were.
+## Not verified
+- 60 fps on real GPUs (headless software rendering measured ~15–25 fps with or without the hero canvas; the canvas adds roughly 7 ms/frame there).
+- Reduced-motion path, screen-reader behaviour, and hybrid/demo landing pages beyond the scripted checks.
+- Nothing is committed.

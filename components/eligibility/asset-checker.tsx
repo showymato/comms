@@ -5,7 +5,8 @@ import { ArrowRight, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useId, useState } from "react";
 import type { EligibilityResult } from "@/types";
-import { ASSETS } from "@/data/assets";
+import { useAssets } from "@/hooks/use-live";
+import { DATA_MODE } from "@/lib/data/config";
 import { CHECK_SPECS } from "@/lib/engine";
 import { eligibilityService, policyService } from "@/lib/services";
 import { useStore } from "@/hooks/use-store";
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { DecisionCard } from "./decision-card";
 import { EvaluationPipeline } from "./evaluation-pipeline";
 
-const PICKS = ["AAPL", "TSLA", "NFLX", "AMD"].map((s) => ASSETS.find((a) => a.symbol === s)!);
+const PICK_SYMBOLS = ["AAPL", "TSLA", "NFLX", "AMD"];
 const UNREGISTERED = "0x00000000000000000000000000000000c0ffee01";
 
 type Phase = "idle" | "loading" | "pipeline" | "done";
@@ -25,7 +26,10 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
   const inputId = useId();
   const policyId = useId();
   const policies = useStore(policyService.state);
-  const [address, setAddress] = useState(ASSETS[0].address);
+  const { assets } = useAssets();
+  const picks = PICK_SYMBOLS.map((s) => assets.find((a) => a.symbol === s)).filter((a): a is NonNullable<typeof a> => Boolean(a));
+  const [chosen, setAddress] = useState<string | null>(null);
+  const address = chosen ?? picks[0]?.address ?? "";
   const [policy, setPolicy] = useState("DEFAULT");
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<EligibilityResult | null>(null);
@@ -33,7 +37,7 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
   const [error, setError] = useState<string | null>(null);
   const [showChecks, setShowChecks] = useState(false);
 
-  const registered = result ? ASSETS.find((a) => a.address === result.address) : undefined;
+  const registered = result ? assets.find((a) => a.address.toLowerCase() === result.address.toLowerCase()) : undefined;
 
   async function submit() {
     const value = address.trim();
@@ -90,7 +94,7 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="label mr-1">Try</span>
-          {PICKS.map((a) => (
+          {picks.map((a) => (
             <button
               key={a.symbol}
               type="button"
@@ -139,7 +143,8 @@ export function AssetChecker({ className, showLink = false }: { className?: stri
           <ArrowRight size={16} />
         </Button>
         <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
-          Read-only. COMMS never signs, trades, lends or takes custody. Demo data — addresses are simulated.
+          Read-only. COMMS never signs, trades, lends or takes custody.{" "}
+          {DATA_MODE === "demo" ? "Demo data — addresses are simulated." : "Evidence is read live from Robinhood and Robinhood Chain; anything that cannot be verified is UNKNOWN."}
         </p>
       </form>
 
@@ -217,7 +222,7 @@ function StaticChecks({ result }: { result: EligibilityResult }) {
           <span className="flex-1 text-[13.5px] text-ink">{c.label}</span>
           <span className="font-mono text-[11px]">
             <span className={c.result === "PASS" ? "text-eligible" : c.result === "FAIL" ? "text-ineligible" : "text-unknown"}>
-              {c.result === "PASS" ? `✓ ${c.passLabel}` : c.result === "FAIL" ? `✕ ${c.failLabel}` : "? NO DATA"}
+              {c.result === "PASS" ? `✓ ${c.passLabel}` : c.result === "FAIL" ? `✕ ${c.failLabel}` : "? UNKNOWN"}
             </span>
           </span>
         </li>

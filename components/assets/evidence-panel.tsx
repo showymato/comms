@@ -4,7 +4,9 @@ import { motion } from "motion/react";
 import type { CheckOutcome } from "@/types";
 import { CodeBlock } from "@/components/ui/code-block";
 import { ResultTag } from "@/components/ui/status";
+import { SourceBadge } from "@/components/live/badges";
 import { formatTimestamp } from "@/lib/format";
+import { isDemoSource } from "@/lib/live/health";
 import { CHECK_STATUS, STATUS } from "@/lib/status";
 import { json } from "@/data/api-docs";
 import { cn } from "@/lib/utils";
@@ -24,9 +26,12 @@ export function EvidencePanel({ check, compactJson = false }: { check: CheckOutc
     check: check.field,
     result: e.value,
     source: e.source,
-    blockNumber: e.blockNumber,
+    network: e.network ?? null,
+    contract: e.contract ?? null,
+    blockNumber: e.blockNumber > 0 ? e.blockNumber : null,
     timestamp: e.timestamp,
     confidence: e.confidence,
+    note: e.note ?? null,
   };
 
   return (
@@ -44,27 +49,44 @@ export function EvidencePanel({ check, compactJson = false }: { check: CheckOutc
         <Field k="Result">
           <span className={cn(e.value === null && "text-unknown")}>{check.rawValue}</span>
         </Field>
-        <Field k="Source">{e.source}</Field>
-        <Field k="Block number">{e.blockNumber > 0 ? e.blockNumber.toLocaleString("en-US") : "—"}</Field>
-        <Field k="Timestamp">{e.blockNumber > 0 ? formatTimestamp(e.timestamp) : "—"}</Field>
-        <Field k="Confidence">
-          <span className="flex items-center gap-3">
-            <span className="tabular">{e.confidence.toFixed(1)}</span>
-            <span aria-hidden className="h-1 w-24 overflow-hidden rounded-full bg-white/8">
-              <motion.span
-                className={cn("block h-full rounded-full", STATUS[status].dot)}
-                initial={{ width: 0 }}
-                animate={{ width: `${e.confidence * 100}%` }}
-                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              />
-            </span>
+        <Field k="Source">
+          <span className="flex flex-wrap items-center gap-2">
+            {e.source === "NONE" ? "UNKNOWN — no source" : e.source}
+            <SourceBadge source={e.source} at={e.timestamp} note={e.note} />
+            {isDemoSource(e.source) ? <span className="rounded-xs border border-conditional/30 px-1 font-mono text-[9.5px] text-conditional">DEMO</span> : null}
           </span>
+        </Field>
+        {e.source === "ONCHAIN" ? <Field k="Network">{e.network ?? "—"}</Field> : null}
+        {e.contract ? (
+          <Field k="Contract">
+            <span className="break-all">{e.contract}</span>
+          </Field>
+        ) : null}
+        <Field k="Block number">{e.blockNumber > 0 ? e.blockNumber.toLocaleString("en-US") : "— (not tied to a block)"}</Field>
+        <Field k="Timestamp">{e.value === null ? "—" : formatTimestamp(e.timestamp)}</Field>
+        <Field k="Confidence">
+          {e.confidence === null ? (
+            <span className="text-ink-3">NOT REPORTED</span>
+          ) : (
+            <span className="flex items-center gap-3">
+              <span className="tabular">{e.confidence.toFixed(1)}</span>
+              <span aria-hidden className="h-1 w-24 overflow-hidden rounded-full bg-white/8">
+                <motion.span
+                  className={cn("block h-full rounded-full", STATUS[status].dot)}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${e.confidence * 100}%` }}
+                  transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </span>
+            </span>
+          )}
         </Field>
       </dl>
 
       {e.value === null ? (
         <p className="mt-4 rounded-md border border-unknown/25 bg-unknown/8 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-2">
-          The source returned no value. COMMS does not guess: a required check without evidence resolves the decision to <span className="font-mono text-unknown">UNKNOWN</span> with reason{" "}
+          {e.note ? <span className="mb-1.5 block font-mono text-[11.5px] text-ink-3">REASON: {e.note}</span> : null}
+          No verified evidence is available. COMMS does not guess: a required check without evidence resolves the decision to <span className="font-mono text-unknown">UNKNOWN</span> with reason{" "}
           <span className="font-mono text-unknown">INSUFFICIENT_EVIDENCE</span>.
         </p>
       ) : null}

@@ -6,7 +6,7 @@ import { ASSETS } from "@/data/assets";
 import { POLICIES } from "@/data/policies";
 import { DecisionCard } from "@/components/eligibility/decision-card";
 import { ResultTag, StatusGlyph } from "@/components/ui/status";
-import { SectionEyebrow } from "@/components/ui/primitives";
+import { DemoTag, SectionEyebrow } from "@/components/ui/primitives";
 import { eligibilityService } from "@/lib/services";
 import { formatClock, shortAddress } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -57,7 +57,10 @@ export function EngineStory() {
         <div className="relative mx-auto grid grid-cols-[minmax(0,1fr)] w-full max-w-[1320px] gap-8 px-5 pt-16 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)] lg:gap-16 lg:px-10 lg:pt-0">
           {/* copy */}
           <div>
-            <SectionEyebrow index="03">The eligibility engine</SectionEyebrow>
+            <div className="flex flex-wrap items-center gap-3">
+              <SectionEyebrow index="03">The eligibility engine</SectionEyebrow>
+              <DemoTag />
+            </div>
             <h2 id="engine-title" className="display mt-5 text-[clamp(1.9rem,4vw,3.4rem)]">
               One decision.
               <br />

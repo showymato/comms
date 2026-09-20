@@ -6,16 +6,18 @@ import { StatusBadge } from "@/components/ui/status";
 import { eligibilityService } from "@/lib/services";
 import { useStore } from "@/hooks/use-store";
 import { formatTimestamp, shortAddress } from "@/lib/format";
-import { ASSETS } from "@/data/assets";
+import { useAssets } from "@/hooks/use-live";
 
 export function RecentRuns() {
   const runs = useStore(eligibilityService.runs);
+  const { assets } = useAssets();
   return (
     <Panel>
       <PanelHeader title="Recent checks" meta={<span className="font-mono">{runs.length} runs</span>} />
+      {runs.length === 0 ? <p className="px-4 py-5 font-mono text-[12px] text-ink-3">No checks run yet in this session.</p> : null}
       <ul>
         {runs.map((r) => {
-          const known = ASSETS.some((a) => a.address === r.address);
+          const known = assets.some((a) => a.address.toLowerCase() === r.address.toLowerCase());
           const inner = (
             <>
               <span className="w-14 font-mono text-[13px] font-medium text-ink">{r.symbol}</span>

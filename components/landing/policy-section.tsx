@@ -28,6 +28,7 @@ export function PolicySection() {
 
   return (
     <Section
+      demo
       id="policy"
       index="07"
       eyebrow="Policy engine"

@@ -75,6 +75,7 @@ export function ConditionalMatrix() {
 
   return (
     <Section
+      demo
       id="conditional"
       index="02"
       eyebrow="Collateral is conditional"

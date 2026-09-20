@@ -1,7 +1,8 @@
 "use client";
 
-import { motion, MotionConfig, useInView, useReducedMotion } from "motion/react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { motion, MotionConfig, useInView } from "motion/react";
+import { useRef, type ReactNode } from "react";
+import { useCountUp } from "@/hooks/use-motion";
 import { formatAgo } from "@/lib/format";
 import { useElapsed } from "@/hooks/use-utils";
 import { cn } from "@/lib/utils";
@@ -87,30 +88,11 @@ export function Ago({ sec, className }: { sec: number; className?: string }) {
   );
 }
 
-/** Count-up number, triggered on view. */
+/** Count-up number: counts up once when scrolled into view, then animates only when the value actually changes. */
 export function CountUp({ to, duration = 1.1, className, format }: { to: number; duration?: number; className?: string; format?: (n: number) => string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true, margin: "-10% 0px" });
-  const reduce = useReducedMotion();
-  const [v, setV] = useState(reduce ? to : 0);
-
-  useEffect(() => {
-    if (!inView) return;
-    if (reduce) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setV(to);
-      return;
-    }
-    let raf = 0;
-    const t0 = performance.now();
-    const step = (t: number) => {
-      const p = Math.min(1, (t - t0) / (duration * 1000));
-      setV(Math.round(to * (1 - Math.pow(1 - p, 3))));
-      if (p < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [inView, to, duration, reduce]);
+  const v = useCountUp(to, { duration, fromZero: true, active: inView });
 
   return (
     <span ref={ref} className={cn("tabular", className)}>

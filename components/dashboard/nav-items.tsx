@@ -1,4 +1,4 @@
-import { BookOpen, Boxes, FileCode2, LayoutGrid, Radio, Settings, ShieldCheck, SlidersHorizontal, Webhook, type LucideIcon } from "lucide-react";
+import { BookOpen, Boxes, CalendarClock, FileCode2, LayoutGrid, Radio, Settings, ShieldCheck, SlidersHorizontal, Webhook, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -14,6 +14,7 @@ export const NAV: NavItem[] = [
   { href: "/eligibility", label: "Eligibility", icon: ShieldCheck },
   { href: "/policies", label: "Policies", icon: SlidersHorizontal },
   { href: "/events", label: "Events", icon: Radio },
+  { href: "/corporate-actions", label: "Corp. actions", icon: CalendarClock },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/api-reference", label: "API", icon: BookOpen, also: ["/sdk"] },
   { href: "/settings", label: "Settings", icon: Settings },

@@ -8,12 +8,12 @@ export interface Flag {
 }
 
 const flag = (e: Evidence, yes: string, no: string, goodWhen = true): Flag =>
-  e.value === null ? { text: "No data", tone: "none" } : { text: e.value ? yes : no, tone: e.value === goodWhen ? "good" : "bad" };
+  e.value === null ? { text: "UNKNOWN", tone: "none" } : { text: e.value ? yes : no, tone: e.value === goodWhen ? "good" : "bad" };
 
 export const oracleFlag = (a: Asset): Flag => {
   const h = a.state.oracleHealthy.value;
   const f = a.state.priceFresh.value;
-  if (h === null || f === null) return { text: "No data", tone: "none" };
+  if (h === null || f === null) return { text: "UNKNOWN", tone: "none" };
   if (!h) return { text: "Unhealthy", tone: "bad" };
   if (!f) return { text: "Stale", tone: "bad" };
   return { text: "Healthy", tone: "good" };

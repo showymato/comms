@@ -58,6 +58,7 @@ export function SystemPulse() {
 
   return (
     <Section
+      demo
       id="realtime"
       index="06"
       eyebrow="Real-time state"

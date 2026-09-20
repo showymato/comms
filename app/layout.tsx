@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { CommandPaletteProvider } from "@/components/dashboard/command-palette";
+import { LiveRuntime } from "@/components/live/live-runtime";
 import { MotionProvider } from "@/components/ui/motion-bits";
 import "./globals.css";
 
@@ -30,7 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <MotionProvider>
-          <CommandPaletteProvider>{children}</CommandPaletteProvider>
+          <CommandPaletteProvider>
+            <LiveRuntime />
+            {children}
+          </CommandPaletteProvider>
         </MotionProvider>
       </body>
     </html>

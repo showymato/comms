@@ -3,11 +3,22 @@
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
 import { Menu, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCommandPalette } from "@/components/dashboard/command-palette";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 import { Kbd } from "@/components/ui/primitives";
+import { Popover } from "@/components/ui/popover";
+import { HealthTag } from "@/components/live/badges";
+import { SystemStatusPanel } from "@/components/live/status-panel";
+import { overallLabel } from "@/components/live/system-line";
+import { overallHealth, useSystemStatus } from "@/hooks/use-system-status";
+import { useLive, useNowMs } from "@/hooks/use-live";
+import { useScrollDirection } from "@/hooks/use-motion";
+import { DATA_MODE } from "@/lib/data/config";
+import { HEALTH } from "@/lib/live/health";
+import { formatAgo } from "@/lib/format";
+import { EASE_CSS } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -18,8 +29,55 @@ const LINKS = [
   { href: "#architecture", label: "Architecture" },
 ];
 
+/** Small status pill: real health of every data dependency, with the time of the last successful sync. */
+function StatusPill() {
+  const rows = useSystemStatus();
+  const overall = overallHealth(rows);
+  const registry = useLive((x) => x.registry);
+  const now = useNowMs(1000);
+  const sync = registry.lastOkAt && now ? formatAgo((now - registry.lastOkAt) / 1000) : null;
+  return (
+    <Popover
+      label="System status"
+      triggerClassName="hidden h-8 items-center gap-2 rounded-md border border-line px-2.5 font-mono text-[10.5px] tracking-[0.08em] transition-colors hover:border-line-2 lg:flex"
+      trigger={
+        <>
+          <HealthTag health={overall} dotOnly />
+          <span className={HEALTH[overall].text}>{overallLabel(overall)}</span>
+        </>
+      }
+      panelClassName="w-80 p-3"
+    >
+      {() => (
+        <div>
+          <SystemStatusPanel compact />
+          {DATA_MODE !== "demo" ? <p className="mt-2 border-t border-line pt-2 font-mono text-[10.5px] text-ink-3">Last synchronization {sync ?? "—"}</p> : null}
+        </div>
+      )}
+    </Popover>
+  );
+}
+
 export function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
+  const [active, setActive] = useState<string | null>(null);
+  const dir = useScrollDirection(120);
+  // compress on scroll down, expand on scroll up; the logo never moves
+  const compact = scrolled && dir === "down";
+
+  useEffect(() => {
+    const ids = ["engine", "check", "policy", "developers", "architecture"];
+    const els = ids.map((id) => document.getElementById(id)).filter((e): e is HTMLElement => Boolean(e));
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => e.isIntersecting && setActive(e.target.id));
+      },
+      { rootMargin: "-45% 0px -50% 0px" },
+    );
+    els.forEach((e) => io.observe(e));
+    return () => io.disconnect();
+  }, []);
+
   const [open, setOpen] = useState(false);
   const { scrollY } = useScroll();
   const { setOpen: openPalette } = useCommandPalette();
@@ -33,7 +91,11 @@ export function LandingNav() {
           scrolled || open ? "border-b border-line bg-base/75 backdrop-blur-xl" : "border-b border-transparent",
         )}
       >
-        <nav aria-label="Primary" className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-5 lg:px-10">
+        <nav
+          aria-label="Primary"
+          style={{ transitionTimingFunction: EASE_CSS }}
+          className={cn("mx-auto flex max-w-[1320px] items-center justify-between px-5 transition-[height] duration-500 lg:px-10", compact ? "h-12" : "h-16")}
+        >
           <Link href="/" aria-label="COMMS home" className="rounded-md">
             <Logo />
           </Link>
@@ -41,14 +103,20 @@ export function LandingNav() {
           <ul className="hidden items-center gap-1 md:flex">
             {LINKS.map((l) => (
               <li key={l.href}>
-                <a href={l.href} className="rounded-md px-3 py-1.5 text-[13px] text-ink-2 transition-colors hover:text-ink">
+                <a
+                  href={l.href}
+                  aria-current={active === l.href.slice(1) ? "location" : undefined}
+                  className={cn("relative rounded-md px-3 py-1.5 text-[13px] transition-colors hover:text-ink", active === l.href.slice(1) ? "text-ink" : "text-ink-2")}
+                >
                   {l.label}
+                  {active === l.href.slice(1) ? <motion.span layoutId="landing-nav-active" className="absolute inset-x-3 -bottom-px h-px bg-cyan" transition={{ type: "spring", stiffness: 520, damping: 40 }} /> : null}
                 </a>
               </li>
             ))}
           </ul>
 
           <div className="flex items-center gap-2">
+            <StatusPill />
             <button
               type="button"
               onClick={() => openPalette(true)}

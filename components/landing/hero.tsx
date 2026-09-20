@@ -6,6 +6,8 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ClipLines } from "@/components/ui/motion-bits";
 import { LiveDot } from "@/components/ui/status";
+import { LiveStrip } from "@/components/live/system-line";
+import { CollateralField } from "./collateral-field";
 import { EngineViz } from "./engine-viz";
 
 export function Hero() {
@@ -19,11 +21,16 @@ export function Hero() {
   const vizBlur = useTransform(scrollYProgress, [0.4, 1], ["blur(0px)", reduce ? "blur(0px)" : "blur(6px)"]);
   const copyY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : -90]);
   const copyOpacity = useTransform(scrollYProgress, [0, 0.6], [1, reduce ? 1 : 0]);
+  // depth: the field sits behind the content and travels at ~0.85× while the hero scrolls away
+  const fieldY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : 135]);
 
   return (
     <section ref={ref} aria-labelledby="hero-title" className="noise relative isolate overflow-hidden">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="bg-grid absolute inset-0" />
+        <motion.div style={{ y: fieldY }} className="absolute inset-0 will-change-transform">
+          <CollateralField className="absolute inset-0 h-full w-full" />
+        </motion.div>
         <div className="glow-spectral absolute inset-0" />
         <div className="absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-base to-transparent" />
       </div>
@@ -77,6 +84,8 @@ export function Hero() {
             </Button>
           </motion.div>
 
+          <LiveStrip className="mt-8" />
+
           <motion.ul
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -101,6 +110,7 @@ export function Hero() {
         >
           <motion.div style={{ scale, opacity: vizOpacity, filter: vizBlur }} className="will-change-transform">
             <EngineViz />
+            <p className="mt-3 text-center font-mono text-[10px] tracking-[0.1em] text-ink-4">ILLUSTRATIVE ENGINE · DEMO DATA</p>
           </motion.div>
         </motion.div>
       </div>
