@@ -76,6 +76,9 @@ function Stat({ k, children, unknown, title }: { k: string; children: React.Reac
   );
 }
 
+/** What the evaluation is working on while the check results resolve one by one (state → oracle → restrictions, then the decision). */
+const STAGE_LABEL = ["CHECKING STATE", "CHECKING STATE", "CHECKING ORACLE", "CHECKING ORACLE", "CHECKING RESTRICTIONS"];
+
 const ORACLE: Record<CheckResult, string> = { PASS: "HEALTHY", FAIL: "UNHEALTHY", UNKNOWN: "UNKNOWN" };
 
 /**
@@ -131,9 +134,9 @@ export function TokenCard({ item, selected, evalKey, docked, onClose }: { item: 
           <div className="flex items-center justify-between gap-2">
             <span className="font-mono text-[15px] font-medium tracking-[-0.01em] text-ink">{asset.symbol}</span>
             {selected && !done ? (
-              <span className="inline-flex h-6 items-center gap-1.5 rounded-md border border-line-2 px-2 font-mono text-[10px] tracking-[0.08em] text-ink-3">
-                <span aria-hidden className="size-1 animate-pulse rounded-full bg-signal" />
-                EVALUATING
+              <span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-md border border-line-2 px-2 font-mono text-[9.5px] tracking-[0.06em] whitespace-nowrap text-ink-3">
+                <span aria-hidden className="size-1 shrink-0 animate-pulse rounded-full bg-signal" />
+                <span aria-live="off">{STAGE_LABEL[Math.min(resolved, STAGE_LABEL.length - 1)]}</span>
               </span>
             ) : (
               <StatusBadge status={result.status} size="sm" />

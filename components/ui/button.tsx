@@ -38,7 +38,7 @@ export function Button({ variant = "secondary", size = "md", magnetic = false, c
   const sy = useSpring(y, { stiffness: 260, damping: 18, mass: 0.4 });
 
   const cls = cn(
-    "inline-flex items-center justify-center rounded-md font-medium whitespace-nowrap select-none transition-[background-color,color,box-shadow,opacity] duration-150 disabled:opacity-40 disabled:pointer-events-none active:translate-y-px",
+    "inline-flex items-center justify-center rounded-md font-medium whitespace-nowrap select-none transition-[background-color,color,box-shadow,opacity,translate] duration-150 disabled:opacity-40 disabled:pointer-events-none active:translate-y-px",
     VARIANTS[variant],
     SIZES[size],
     className,

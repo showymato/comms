@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, MotionConfig, useInView } from "motion/react";
+import { motion, MotionConfig, useInView, useReducedMotion } from "motion/react";
 import { useRef, type ReactNode } from "react";
 import { useCountUp } from "@/hooks/use-motion";
 import { formatAgo } from "@/lib/format";
@@ -55,6 +55,43 @@ export function ClipLines({ lines, className, lineClassName }: { lines: ReactNod
             {l}
           </motion.span>
         </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Editorial headline reveal: line by line — opacity + 20px rise + a slight blur that resolves to sharp.
+ * Held back until `on` (the hero waits for the loader to hand over). The last line lands a beat after the others.
+ */
+export function BlurLines({
+  lines,
+  on = true,
+  delay = 0,
+  step = 0.085,
+  lastExtra = 0.06,
+  className,
+}: {
+  lines: ReactNode[];
+  on?: boolean;
+  delay?: number;
+  step?: number;
+  lastExtra?: number;
+  className?: string;
+}) {
+  const reduce = useReducedMotion();
+  return (
+    <span className={cn("block", className)}>
+      {lines.map((l, i) => (
+        <motion.span
+          key={i}
+          className="block whitespace-nowrap will-change-[transform,opacity,filter]"
+          initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
+          animate={on ? { opacity: 1, y: 0, filter: "blur(0px)" } : { opacity: 0, y: 20, filter: "blur(8px)" }}
+          transition={{ duration: reduce ? 0.15 : 0.62, delay: on && !reduce ? delay + i * step + (i === lines.length - 1 ? lastExtra : 0) : 0, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {l}
+        </motion.span>
       ))}
     </span>
   );

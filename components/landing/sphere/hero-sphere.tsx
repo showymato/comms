@@ -15,6 +15,7 @@ import { formatAgo, shortAddress } from "@/lib/format";
 import { STATUS } from "@/lib/status";
 import { RH_CHAIN_ID } from "@/lib/wallet/chain";
 import { cn } from "@/lib/utils";
+import { getIntroPhase, useHeroRevealed, useIntroPhase } from "../hero-intro";
 import { SphereEngine, type CardPos, type EngineStats, type SystemId } from "./engine";
 import { TokenCard } from "./token-card";
 import { useSphereData, type SphereItem } from "./use-sphere-data";
@@ -40,13 +41,17 @@ function useMedia(query: string) {
 
 const noopSubscribe = () => () => {};
 
-/** Top-right: LIVE only when every source is fresh. Demo builds say so instead. */
+/**
+ * Top-left: `● LIVE` over the chain name. LIVE only when every source is fresh (otherwise LAST KNOWN / STALE / DEGRADED / OFFLINE);
+ * the dot breathes only while the state is actually LIVE. Demo builds say so instead.
+ */
 function LiveCorner({ on }: { on: boolean }) {
   const rows = useSystemStatus();
   const health = overallHealth(rows);
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: on ? 1 : 0 }} transition={{ duration: 0.5 }} className="flex items-center gap-2">
-      {DATA_MODE === "demo" ? <ModeBadge /> : <HealthTag health={health} />}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: on ? 1 : 0 }} transition={{ duration: 0.5 }} className="flex flex-col items-start gap-1">
+      {DATA_MODE === "demo" ? <ModeBadge /> : <HealthTag health={health} className={cn("!text-[11px] !tracking-[0.12em]", health === "LIVE" && "[&>span:first-child]:animate-breathe")} />}
+      <span className="text-ink-3">Robinhood Chain · {RH_CHAIN_ID}</span>
     </motion.div>
   );
 }
@@ -61,6 +66,26 @@ function BlockCorner() {
     <span className="tabular" title={d ? `Read from Robinhood Chain ${chain.fetchedAt ? formatAgo((now - chain.fetchedAt) / 1000) : ""}` : "No block read yet"}>
       BLOCK {d ? `#${d.block.toLocaleString("en-US")}` : "—"}
     </span>
+  );
+}
+
+/** While the registry is really being fetched: two honest status lines with tiny indicators, no skeletons. */
+function Microstates() {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setStep(1), 900);
+    return () => clearTimeout(t);
+  }, []);
+  const lines = ["Resolving asset", "Reading live state"];
+  return (
+    <div role="status" aria-live="polite" className="pointer-events-none absolute inset-x-0 bottom-9 flex flex-col items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] uppercase">
+      {lines.map((l, i) => (
+        <span key={l} className={cn("flex items-center gap-2 transition-opacity duration-500", i <= step ? "text-ink-2 opacity-100" : "opacity-0")}>
+          <span aria-hidden className={cn("size-1 rounded-full", i < step ? "bg-eligible" : "animate-pulse bg-signal")} />
+          {l}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -94,6 +119,25 @@ function Unavailable({ error }: { error: string | null }) {
   );
 }
 
+/** Appears for ~1.4 s the first time the sphere is touched. It says LIVE only while every source is fresh. */
+function WakeLabel({ on }: { on: boolean }) {
+  const rows = useSystemStatus();
+  const health = overallHealth(rows);
+  const word = DATA_MODE === "demo" ? "DEMO" : health === "LIVE" ? "LIVE" : health.replace("_", " ");
+  return (
+    <motion.div
+      aria-hidden
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: on ? 1 : 0, y: on ? 0 : 4 }}
+      transition={{ duration: on ? 0.35 : 0.6, ease: [0.16, 1, 0.3, 1] }}
+      className="pointer-events-none absolute inset-x-0 z-10 flex justify-center"
+      style={{ top: "calc(50% + 44px)" }}
+    >
+      <span className="rounded-xs bg-[#080c10]/75 px-2 py-1 font-mono text-[9.5px] tracking-[0.2em] text-on-ink/90 uppercase">{word} collateral state</span>
+    </motion.div>
+  );
+}
+
 export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
   const data = useSphereData();
   const reduce = useReducedMotion();
@@ -124,7 +168,9 @@ export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
   const [chipHover, setChipHover] = useState<string | null>(null);
   const [evalKey, setEvalKey] = useState(0);
   const [ready, setReady] = useState(false);
+  const [awake, setAwake] = useState(false);
   const [stats, setStats] = useState<EngineStats | null>(null);
+  const revealed = useHeroRevealed();
 
   const { items, tokens, system, loaded, total, error } = data;
   const selectedId = sel !== null && items.some((i) => i.id === sel) ? sel : null;
@@ -143,11 +189,13 @@ export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
     selRef.current = selectedId;
   });
 
-  // the entrance: sphere forms → rings → nodes (engine), then the card, then the live indicator
+  // the entrance: the engine builds the sphere while the loader dissolves (begin() below); once the hero copy is revealed
+  // the live indicator and the rest of the sphere UI follow
   useEffect(() => {
-    const t = setTimeout(() => setReady(true), 1050);
+    if (!revealed) return;
+    const t = setTimeout(() => setReady(true), 500);
     return () => clearTimeout(t);
-  }, []);
+  }, [revealed]);
 
   const select = useCallback((id: string) => {
     setSel(id);
@@ -224,17 +272,22 @@ export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
 
     const eng = new SphereEngine(
       canvas,
-      { compact, reduced: reduce },
+      { compact, reduced: reduce, hold: getIntroPhase() === "loader" },
       {
         onHover: setPtrHover,
         onSelect: (id) => select(id),
         onDeselect: () => deselect(),
         onCard: docked ? undefined : place,
         onStats: debug ? setStats : undefined,
+        onWake: () => {
+          setAwake(true);
+          setTimeout(() => setAwake(false), 1500);
+        },
       },
     );
     engineRef.current = eng;
     eng.mount();
+    if (getIntroPhase() !== "loader") eng.begin();
     if (debug) (window as unknown as { __sphere?: SphereEngine }).__sphere = eng;
     return () => {
       ro.disconnect();
@@ -244,6 +297,12 @@ export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
     // the engine is rebuilt only when its capabilities change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compact, docked, debug]);
+
+  // the loader releases the sphere: it starts forming behind the dissolving scrim
+  const introPhase = useIntroPhase();
+  useEffect(() => {
+    if (introPhase !== "loader") engineRef.current?.begin();
+  }, [introPhase]);
 
   useEffect(() => engineRef.current?.setReduced(reduce), [reduce, compact, docked, debug]);
   useEffect(() => engineRef.current?.setData(tokens, system), [tokens, system, compact, docked, debug]);
@@ -350,19 +409,21 @@ export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
           <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" style={{ touchAction: "pan-y" }} />
 
           {/* Web3 atmosphere: real chain / block / registry readouts, nothing decorative */}
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between font-mono text-[10px] tracking-[0.1em] text-ink-3 uppercase">
-            <div className="space-y-1.5">
-              <div>Robinhood Chain · {RH_CHAIN_ID}</div>
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-10 font-mono text-[10px] tracking-[0.1em] text-ink-3 uppercase">
+            <div className="space-y-2">
+              <LiveCorner on={cardOn} />
               {walletState !== "none" && address ? (
                 <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-1.5 text-ink">
                   <span className={cn("size-1.5 rounded-full", walletState === "ok" ? "bg-signal" : "bg-conditional")} />
                   {walletState === "ok" ? "Connected" : "Wrong network"} · <span className="normal-case">{shortAddress(address, 4, 3)}</span>
+                  <span className="text-ink-4">· Read-only</span>
                 </motion.div>
               ) : null}
-              {walletState !== "none" ? <div className="text-ink-4">Read-only</div> : null}
             </div>
-            <LiveCorner on={cardOn} />
           </div>
+
+          {/* first touch: the network wakes and names what it is showing — honest about its freshness */}
+          <WakeLabel on={awake} />
           <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between font-mono text-[10px] tracking-[0.1em] text-ink-3 uppercase">
             <span>{loaded ? `${total} tokens · ${tokens.length} shown` : "Registry —"}</span>
             <span className={cn("hidden transition-opacity duration-500 sm:block", selectedId || !loaded ? "opacity-0" : "opacity-100")}>Touch a node · drag to turn</span>
@@ -373,9 +434,7 @@ export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
             error ? (
               <Unavailable error={error} />
             ) : (
-              <div role="status" className="pointer-events-none absolute inset-x-0 bottom-10 text-center font-mono text-[11px] tracking-[0.1em] text-ink-3 uppercase">
-                Reading registry…
-              </div>
+              <Microstates />
             )
           ) : null}
 
@@ -403,7 +462,7 @@ export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
         ) : null}
 
         {/* keyboard / screen-reader / touch path — the sphere is an enhancement, this is the same information */}
-        <div className="mt-4">
+        <div className={cn("mt-4 transition-opacity duration-700", cardOn ? "opacity-100" : "opacity-0")}>
           <div id="sphere-desc" className="sr-only">
             Interactive network of {tokens.length} Stock Tokens around the COMMS core. Choose a token to see its evidence and eligibility. Arrow keys move between tokens, Escape clears the selection.
           </div>
@@ -439,13 +498,16 @@ export function HeroSphere({ ref }: { ref?: Ref<HeroSphereHandle> }) {
               </Link>
             ) : null}
           </div>
-          {selectedId && shown ? (
-            <p className="mt-2 flex items-center gap-2 font-mono text-[10.5px] tracking-[0.06em] text-ink-3 uppercase">
-              <StatusGlyph status={shown.result.status} size={11} className={STATUS[shown.result.status].text} />
-              <span className="sr-only">Selected asset status: </span>
-              {shown.asset.symbol} · {shown.result.status}
-            </p>
-          ) : null}
+          {/* fixed height: selecting a token must not push the hero copy around */}
+          <div className="mt-2 h-4">
+            {selectedId && shown ? (
+              <p className="flex items-center gap-2 font-mono text-[10.5px] tracking-[0.06em] text-ink-3 uppercase">
+                <StatusGlyph status={shown.result.status} size={11} className={STATUS[shown.result.status].text} />
+                <span className="sr-only">Selected asset status: </span>
+                {shown.asset.symbol} · {shown.result.status}
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
 

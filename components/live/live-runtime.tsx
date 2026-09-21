@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLive, useLiveConnection } from "@/hooks/use-live";
 import { DATA_MODE } from "@/lib/data/config";
@@ -26,6 +27,8 @@ function Row({ label, state }: { label: string; state: Dot }) {
  */
 export function LiveRuntime() {
   useLiveConnection();
+  // the home page has its own cinematic loader (components/landing/hero-loader.tsx) that hands over to the hero; this boot screen serves every other route
+  const home = usePathname() === "/";
   const booting = useLive((s) => s.booting);
   const registry = useLive((s) => s.registry);
   const prices = useLive((s) => s.prices);
@@ -45,7 +48,7 @@ export function LiveRuntime() {
   }, []);
 
   const dot = (s: { data: unknown; error: string | null }): Dot => (s.data !== null ? "ok" : s.error ? "failed" : "pending");
-  const show = DATA_MODE !== "demo" && booting && armed && !expired;
+  const show = DATA_MODE !== "demo" && !home && booting && armed && !expired;
 
   return (
     <AnimatePresence>

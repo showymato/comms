@@ -1,0 +1,47 @@
+// Hero interaction pass: gravity near a token, hover, click → focus mode + staged evaluation, scroll reorganisation.
+// usage: node scripts/hero-interact.mjs [base] [WxH]
+import { chromium } from "file:///C:/Users/kh491/OneDrive/Desktop/landings/nova/node_modules/playwright/index.mjs";
+const BASE = process.argv[2] || "http://localhost:3277";
+const [W, H] = (process.argv[3] || "1440x900").split("x").map(Number);
+const b = await chromium.launch();
+const ctx = await b.newContext({ viewport: { width: W, height: H } });
+const p = await ctx.newPage();
+const errors = [];
+p.on("pageerror", (e) => errors.push(e.message));
+p.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+await p.goto(`${BASE}/?debug=1`, { waitUntil: "domcontentloaded" });
+await p.waitForTimeout(4200);
+const shot = (n) => p.screenshot({ path: `shots/intro/i-${n}.png`, caret: "initial" });
+const node = (sym) => p.evaluate((s) => { const e = window.__sphere; const n = e.nodes.find((x) => x.label === s); return n ? { x: n.sx, y: n.sy, gx: n.gx, gy: n.gy, pull: n.pull } : null; }, sym);
+const box = await p.evaluate(() => document.querySelector("canvas").getBoundingClientRect().toJSON());
+const sym = process.env.SYM || "AAPL";
+let n = await node(sym);
+console.log("node before", n);
+// approach: 70px away, then 30px away
+await p.mouse.move(box.x + n.x + 90, box.y + n.y + 40, { steps: 8 });
+await p.waitForTimeout(700);
+n = await node(sym);
+console.log("near (90px)", n && { gx: +n.gx.toFixed(2), gy: +n.gy.toFixed(2), pull: +n.pull.toFixed(2) });
+await p.mouse.move(box.x + n.x + 40, box.y + n.y + 16, { steps: 6 });
+await p.waitForTimeout(700);
+n = await node(sym);
+console.log("near (40px)", n && { gx: +n.gx.toFixed(2), gy: +n.gy.toFixed(2), pull: +n.pull.toFixed(2), mag: +Math.hypot(n.gx, n.gy).toFixed(2) });
+await shot("gravity");
+n = await node(sym);
+await p.mouse.move(box.x + n.x, box.y + n.y, { steps: 6 });
+await p.waitForTimeout(600);
+await shot("hover");
+await p.mouse.down();
+await p.mouse.up();
+await p.waitForTimeout(500);
+await shot("click-early");
+await p.waitForTimeout(2400);
+await shot("click-done");
+await p.keyboard.press("Escape");
+await p.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.9, { steps: 4 });
+await p.waitForTimeout(600);
+await p.evaluate(() => window.scrollTo(0, 450));
+await p.waitForTimeout(900);
+await shot("scroll-50");
+console.log("errors:", errors.length ? errors.slice(0, 3) : "none");
+await b.close();

@@ -50,6 +50,8 @@ export interface EngineCallbacks {
   onDeselect?: () => void;
   onCard?: (p: CardPos | null) => void;
   onStats?: (s: EngineStats) => void;
+  /** the first time the visitor touches the sphere: the network wakes up for ~1.2 s, then settles back to idle */
+  onWake?: () => void;
 }
 
 /* ───────────── math ───────────── */
@@ -147,6 +149,10 @@ interface Node {
   sc: number;
   depth: number;
   vz: number;
+  /** cursor gravity: smoothed screen-space offset (px) toward the pointer, and how strongly the node is being pulled (0–1) */
+  gx: number;
+  gy: number;
+  pull: number;
 }
 interface Link {
   a: number;
@@ -249,6 +255,10 @@ function makeGranules(rnd: () => number, total: number): Granules {
 }
 
 const STAGE_ORDER: SystemId[] = ["state", "checks", "policy", "decision"];
+const WAKE_MS = 1200;
+/** cursor gravity: reach and maximum pull, in px */
+const GRAVITY_REACH = 130;
+const GRAVITY_MAX = 4.5;
 /** brightness steps: granules are batched into (colour × level) paths so a frame costs a handful of fills */
 const GRAIN_LEVELS = 6;
 
@@ -326,9 +336,20 @@ export class SphereEngine {
   private ambientAt = 0;
   private ambientN = 0;
 
+  /** the entrance clock is frozen (nothing drawn) until begin() — the page loader decides when the network starts forming */
+  private held = false;
+  /** the first-touch "wake": envelope 0 → 1 → 0 over WAKE_MS */
+  private woken = false;
+  private wakeAt = -1;
+  private wakeAmt = 0;
+  /** strongest hovered token (0–1): the rest of the network dims a little */
+  private hoverAmt = 0;
+  private dtMs = 16;
+  private wakeTok: Node | undefined;
+
   private cleanup: Array<() => void> = [];
 
-  constructor(private canvas: HTMLCanvasElement, opts: { compact: boolean; reduced: boolean; dprCap?: number }, cb: EngineCallbacks) {
+  constructor(private canvas: HTMLCanvasElement, opts: { compact: boolean; reduced: boolean; dprCap?: number; hold?: boolean }, cb: EngineCallbacks) {
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) throw new Error("2D canvas unavailable");
     this.ctx = ctx;
@@ -336,6 +357,7 @@ export class SphereEngine {
     this.compact = opts.compact;
     this.reduced = opts.reduced;
     this.dprCap = opts.dprCap ?? 1.75;
+    this.held = !!opts.hold && !opts.reduced;
     if (this.reduced) this.T = 5000;
     const rnd = mulberry(4663);
     this.gr = makeGranules(rnd, this.compact ? 320 : 900);
@@ -422,6 +444,8 @@ export class SphereEngine {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, moved: 0 };
       this.yawVel = 0;
+      // touch has no hover: the first tap on the sphere wakes it
+      if (e.pointerType !== "mouse") this.triggerWake();
       // a grab while a node is focused hands the camera to the hand: continue from where the view is now
       if (this.selectedId) this.yawBase = this.yaw.x - (this.mouse.x * 0.34 + this.scroll * 0.9);
       try {
@@ -496,6 +520,29 @@ export class SphereEngine {
     );
     this.start();
     this.invalidate();
+  }
+
+  /** start the entrance: points → curves → connections → token nodes → core. The clock was frozen at 0 until now. */
+  begin() {
+    if (!this.held) return;
+    this.held = false;
+    this.last = 0;
+    this.invalidate();
+  }
+
+  /** the first touch: the network wakes for ~1.2 s and settles back (does nothing twice) */
+  private triggerWake() {
+    if (this.woken || this.held) return;
+    this.woken = true;
+    this.wakeAt = this.T;
+    this.cb.onWake?.();
+    if (this.reduced) return;
+    // a few small packets start moving along the core connections
+    const cands = this.links.map((l, i) => ({ l, i })).filter(({ l }) => l.kind === "core");
+    for (let k = 0; k < Math.min(4, cands.length); k++) {
+      const c = cands[(k * 3) % cands.length];
+      this.packets.push({ legs: [{ li: c.i, fwd: k % 2 === 0 }], leg: 0, t: 0, speed: 1 / 1100, strong: false, rgb: SIGNAL });
+    }
   }
 
   destroy() {
@@ -660,7 +707,8 @@ export class SphereEngine {
   private addCore() {
     this.nodes = [this.makeNode("core", "core", 0, 0)];
     this.nodes[0].label = "COMMS";
-    this.nodes[0].bornAt = 380;
+    // the central intelligence field comes online after the network around it
+    this.nodes[0].bornAt = this.reduced ? -5000 : 950;
     this.byId = new Map([["core", 0]]);
   }
   private makeNode(id: string, kind: Node["kind"], orbit: number, theta: number): Node {
@@ -685,6 +733,9 @@ export class SphereEngine {
       sc: 1,
       depth: 1,
       vz: 0,
+      gx: 0,
+      gy: 0,
+      pull: 0,
     };
   }
 
@@ -860,8 +911,13 @@ export class SphereEngine {
   /* ───────────── frame ───────────── */
 
   private frame(dtMs: number) {
+    if (this.held) {
+      this.ctx.clearRect(0, 0, this.W, this.H);
+      return;
+    }
     const dt = dtMs / 1000;
     this.T += dtMs;
+    this.dtMs = dtMs;
     this.fpsEma += (1000 / Math.max(1, dtMs) - this.fpsEma) * 0.06;
     this.update(dt, dtMs);
     this.project();
@@ -904,13 +960,26 @@ export class SphereEngine {
     this.mouse.x += (this.mouse.tx - this.mouse.x) * mk;
     this.mouse.y += (this.mouse.ty - this.mouse.y) * mk;
 
+    // the first touch: hovering the sphere itself (not just its surroundings) wakes the network
+    if (!this.woken && this.mouse.inside && !this.reduced) {
+      const d = Math.hypot(this.mouse.px - this.cx, this.mouse.py - this.cy);
+      if (d < this.limbR * 1.02) this.triggerWake();
+    }
+    if (this.wakeAt >= 0) {
+      const u = (this.T - this.wakeAt) / WAKE_MS;
+      this.wakeAmt = u >= 1 ? 0 : smooth(clamp(u / 0.28)) * (1 - smooth(clamp((u - 0.55) / 0.45)));
+    }
+    const wake = this.wakeAmt;
+
     // nodes: orbit + hover / selection easing
     const hoverId = this.ptrHover ?? this.extHover;
     const pos = { x: 0, y: 0, z: 0 };
+    let hoverMax = 0;
     this.nodes.forEach((n) => {
       if (n.kind !== "core") {
         const o = ORBITS[n.orbit];
-        const slow = 1 - 0.9 * Math.max(n.hover, n.sel);
+        // hovering / selecting a node slows it; waking slows the whole network
+        const slow = (1 - 0.9 * Math.max(n.hover, n.sel)) * (1 - 0.75 * wake);
         if (!snap) n.theta += o.dir * o.speed * (1 + this.exploreAmt * 1.4) * slow * dt;
         this.orbitPos(n, pos);
         n.lx = pos.x;
@@ -920,7 +989,11 @@ export class SphereEngine {
       n.hover += ((n.id === hoverId ? 1 : 0) - n.hover) * ek(120);
       n.sel += ((n.id === this.selectedId ? 1 : 0) - n.sel) * ek(240);
       n.glow *= snap ? 0 : Math.exp(-dtMs / 700);
+      // waking brightens the tokens facing the viewer
+      if (wake > 0.02 && n.kind === "token" && n.vz > -0.2) n.glow = Math.max(n.glow, wake * 0.55);
+      if (n.kind === "token") hoverMax = Math.max(hoverMax, n.hover);
     });
+    this.hoverAmt += (hoverMax - this.hoverAmt) * ek(200);
     this.focusAmt += ((this.selectedId ? 1 : 0) - this.focusAmt) * ek(320);
 
     // stage nodes light in order as the page scrolls: token → state → checks → policy → decision
@@ -931,7 +1004,7 @@ export class SphereEngine {
 
     // camera targets
     const sel = this.selectedId ? this.nodes[this.byId.get(this.selectedId) ?? -1] : undefined;
-    const drift = this.reduced ? 0 : 0.026 * (1 + this.exploreAmt * 1.6);
+    const drift = this.reduced ? 0 : 0.026 * (1 + this.exploreAmt * 1.6) * (1 - 0.75 * wake);
     const dragging = !!this.drag && this.drag.moved > 6;
     if (snap) this.yawVel = 0;
     // hand-spin: momentum carries on after release and decays; a held, still hand carries none
@@ -1004,6 +1077,7 @@ export class SphereEngine {
       n.sc = f;
       n.vz = z2;
       n.depth = clamp((z2 + 1) / 2);
+      if (n.kind === "token") this.gravity(n);
     }
     for (const l of this.links) {
       const a = this.nodes[l.a];
@@ -1023,6 +1097,34 @@ export class SphereEngine {
     }
   }
 
+  /**
+   * Cursor gravity: a token near the pointer drifts 2–4.5 px toward it (springy, never snapping), and reports how strongly
+   * it is being pulled so its connections and brightness can react. Screen-space only — the orbit itself is untouched.
+   */
+  private gravity(n: Node) {
+    let tx = 0;
+    let ty = 0;
+    let pull = 0;
+    const near = !this.reduced && this.mouse.inside && !(this.drag && this.drag.moved > 6) && n.vz > -0.35;
+    if (near) {
+      const dx = this.mouse.px - n.sx;
+      const dy = this.mouse.py - n.sy;
+      const d = Math.hypot(dx, dy);
+      if (d < GRAVITY_REACH && d > 0.5) {
+        pull = (1 - d / GRAVITY_REACH) ** 2;
+        const mag = Math.min(GRAVITY_MAX, 1 + pull * (GRAVITY_MAX - 1)) * (d > 14 ? 1 : d / 14);
+        tx = (dx / d) * mag;
+        ty = (dy / d) * mag;
+      }
+    }
+    const k = 1 - Math.exp(-this.dtMs / 140);
+    n.gx += (tx - n.gx) * k;
+    n.gy += (ty - n.gy) * k;
+    n.pull += (pull - n.pull) * k;
+    n.sx += n.gx;
+    n.sy += n.gy;
+  }
+
   private introBody() {
     if (this.reduced) return 1;
     return 0.94 + 0.06 * smooth(clamp(this.T / 700));
@@ -1038,11 +1140,16 @@ export class SphereEngine {
     g.clearRect(0, 0, this.W, this.H);
 
     const T = this.T;
-    const bodyA = smooth(clamp(T / 550));
-    const ringsA = clamp((T - 250) / 650);
-    const linksA = smooth(clamp((T - 800) / 550));
+    // build order: fine points → the body they sit on → orbital curves drawing in → connections → nodes (per-node bornAt) → core
+    const pointsA = smooth(clamp(T / 380));
+    const bodyA = smooth(clamp((T - 160) / 520));
+    const ringsA = clamp((T - 330) / 620);
+    const linksA = smooth(clamp((T - 640) / 520));
     const dim = 1 - this.evalAmt * 0.28;
     const scrollFade = 1 - this.scroll * 0.35;
+    // scrolling: the token links let go and the pipeline (state → checks → policy → decision) takes over
+    const reorg = smooth(clamp((this.scroll - 0.3) / 0.4));
+    const wake = this.wakeAmt;
 
     // body
     if (this.body) {
@@ -1094,7 +1201,7 @@ export class SphereEngine {
 
     // granules: the dust on and inside the sphere (physics + projection happen once, painting is split in / out of the disc)
     this.stepGranules(dtMs, R);
-    const grainA = bodyA * dim * scrollFade;
+    const grainA = pointsA * dim * scrollFade;
     this.paintGranules(0, this.gr.nIn, grainA);
 
     // orbit rings — back arc dim, front arc clearer
@@ -1143,8 +1250,22 @@ export class SphereEngine {
       const depthA = 0.55 + 0.45 * clamp((dz + 1) / 2);
       let a = l.strength * 0.15 * depthA * dim;
       if (this.focusAmt > 0.01 && !touchS && l.kind !== "pipe") a *= 1 - 0.55 * this.focusAmt;
-      if (l.kind === "pipe") a *= 1 + this.evalAmt * 1.6;
+      // hovering a token: connections that are not its own recede a little
+      if (this.hoverAmt > 0.01 && !touchH) a *= 1 - 0.4 * this.hoverAmt;
+      if (l.kind === "pipe") a *= 1 + this.evalAmt * 1.6 + reorg * 1.4;
+      else a *= 1 - 0.5 * reorg;
       let col: RGB = PAPER;
+      // a token the cursor is leaning toward lights its own connections
+      const pullA = (this.nodes[l.a].pull + this.nodes[l.b].pull) * 0.5;
+      if (pullA > 0.02) {
+        a += pullA * 0.3;
+        col = mix(PAPER, SIGNAL, clamp(pullA * 1.6));
+      }
+      // waking: connections surface, then settle
+      if (wake > 0.01 && l.kind !== "ring") {
+        a += wake * 0.24;
+        col = mix(col, SIGNAL, wake * 0.7);
+      }
       if (touchS) {
         a = Math.max(a, 0.5 * this.focusAmt);
         col = SIGNAL;
@@ -1245,6 +1366,7 @@ export class SphereEngine {
     }
 
     // nodes, far → near (drawn unclipped so outer nodes never get cut)
+    this.wakeTok = this.nodes.find((n) => n.kind === "token");
     const order = this.nodes.map((n, i) => i).sort((a, b) => this.nodes[a].vz - this.nodes[b].vz);
     g.font = `500 ${this.compact ? 9 : 10}px ${this.fontFamily}`;
     g.textBaseline = "middle";
@@ -1478,6 +1600,13 @@ export class SphereEngine {
       const k = this.zoom.x * born;
       const rr = (this.compact ? 15 : 19) * k;
       g.drawImage(this.sprite(this.ring.rgb), x - rr * 3, y - rr * 3, rr * 6, rr * 6);
+      // waking: the central field swells and brightens for a moment
+      if (this.wakeAmt > 0.01) {
+        g.globalAlpha = 0.5 * this.wakeAmt * born;
+        const wr = rr * (3 + 1.6 * this.wakeAmt);
+        g.drawImage(this.sprite(SIGNAL), x - wr, y - wr, wr * 2, wr * 2);
+        g.globalAlpha = 1;
+      }
       // eligibility ring: sweeps while COMMS evaluates, then holds the decision colour
       g.lineWidth = 1.4;
       g.strokeStyle = rgba(PAPER, 0.14 * born);
@@ -1515,11 +1644,14 @@ export class SphereEngine {
       return;
     }
 
-    const h = n.hover;
+    // waking lifts the first token: its label names its real status while the network is awake
+    const h = Math.max(n.hover, n === this.wakeTok ? this.wakeAmt * 0.9 : 0);
     const s = n.sel;
     const dimSel = n.kind === "token" && this.focusAmt > 0 && s < 0.5 && h < 0.5 ? 1 - 0.42 * this.focusAmt : 1;
+    // hovering a token: everything unrelated to it steps back slightly
+    const dimHover = this.hoverAmt > 0.01 && n.hover < 0.5 ? 1 - 0.34 * this.hoverAmt : 1;
     const inactive = n.kind === "token" && n.active === false ? 0.45 : 1;
-    const alpha = born * depthA * dimSel * inactive * dim * scrollFade;
+    const alpha = born * depthA * dimSel * dimHover * inactive * dim * scrollFade;
 
     if (n.kind === "system") {
       const col = HEALTH_RGB[n.health];
@@ -1549,8 +1681,9 @@ export class SphereEngine {
 
     // token
     const col = STATUS_RGB[n.status];
-    const emph = Math.max(h, s);
-    const r = (this.compact ? 4.6 : 5.4) * n.sc * born * (1 + 0.42 * h + 0.22 * s);
+    const emph = Math.max(h, s, n.pull * 0.6);
+    // hover scales the node ~1.08×; the border, brightness and label carry the rest of the emphasis
+    const r = (this.compact ? 4.6 : 5.4) * n.sc * born * (1 + 0.08 * h + 0.14 * s + 0.04 * n.pull);
     if (emph > 0.02 || n.glow > 0.05) {
       const gr = r * (3.4 + emph);
       g.globalAlpha = clamp(0.16 + emph * 0.4 + n.glow * 0.3) * born;
@@ -1561,8 +1694,8 @@ export class SphereEngine {
     g.beginPath();
     g.arc(n.sx, n.sy, r, 0, TAU);
     g.fill();
-    g.strokeStyle = rgba(col, (0.55 + 0.4 * emph) * alpha * 1.25);
-    g.lineWidth = 1.2 + emph * 0.4;
+    g.strokeStyle = rgba(col, (0.55 + 0.45 * emph) * alpha * 1.25);
+    g.lineWidth = 1.2 + emph * 0.7;
     g.beginPath();
     g.arc(n.sx, n.sy, r, 0, TAU);
     g.stroke();

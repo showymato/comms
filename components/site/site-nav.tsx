@@ -9,6 +9,7 @@ import { FreshnessTag, HealthTag } from "@/components/live/badges";
 import { RollingText } from "@/components/live/rolling-text";
 import { Logo } from "@/components/ui/logo";
 import { Popover } from "@/components/ui/popover";
+import { HERO_DELAY, useIntroPhase } from "@/components/landing/hero-intro";
 import { WalletButton } from "@/components/wallet/connect-button";
 import { useLive } from "@/hooks/use-live";
 import { useSliceHealthFor } from "@/hooks/use-system-status";
@@ -136,6 +137,17 @@ export function SiteNav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  // on the home page the loader's wordmark flies into this logo; the rest of the nav reveals as the hero takes over
+  const intro = useIntroPhase();
+  const home = pathname === "/";
+  const logoHidden = home && intro !== "done";
+  const navHidden = home && (intro === "loader" || intro === "sphere");
+  const reveal = {
+    opacity: navHidden ? 0 : 1,
+    transform: navHidden ? "translateY(-4px)" : "none",
+    transition: "opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1)",
+    transitionDelay: navHidden ? "0s" : `${HERO_DELAY.nav}s`,
+  } as const;
 
   useEffect(() => {
     let raf = 0;
@@ -169,10 +181,10 @@ export function SiteNav() {
           className={cn("mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-5 transition-[height] duration-500 lg:px-10", scrolled ? "h-14" : "h-[72px]")}
         >
           <div className="flex items-center gap-8">
-            <Link href="/" aria-label="COMMS home" className="rounded-md">
+            <Link href="/" aria-label="COMMS home" data-nav-logo className="rounded-md" style={{ opacity: logoHidden ? 0 : 1 }}>
               <Logo tone="black" />
             </Link>
-            <div className="hidden items-center md:flex">
+            <div className="hidden items-center md:flex" style={reveal}>
               <MenuLink label="Products" items={PRODUCTS} />
               <Link href="/#infrastructure" className="flex h-9 items-center rounded-md px-3 text-[13.5px] text-ink-2 transition-colors hover:text-ink">
                 Infrastructure
@@ -184,7 +196,7 @@ export function SiteNav() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4" style={reveal}>
             <NetworkPill className="hidden sm:block" />
             <WalletButton />
             <button

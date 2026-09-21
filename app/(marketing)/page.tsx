@@ -4,6 +4,7 @@ import { CheckSection } from "@/components/landing/check-section";
 import { DevelopersSection } from "@/components/landing/developers-section";
 import { FinalCta } from "@/components/landing/final-cta";
 import { Hero } from "@/components/landing/hero";
+import { HeroLoader } from "@/components/landing/hero-loader";
 import { Pipeline } from "@/components/landing/pipeline";
 import { PolicySection } from "@/components/landing/policy-section";
 import { RegistryPreview } from "@/components/landing/registry-preview";
@@ -15,6 +16,7 @@ import { SiteNav } from "@/components/site/site-nav";
 export default function LandingPage() {
   return (
     <>
+      <HeroLoader />
       <SiteNav />
       <main id="main">
         <Hero />
