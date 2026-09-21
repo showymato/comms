@@ -9,10 +9,16 @@ Runs on **live Robinhood data by default**; a labelled demo dataset is still ava
 - Type: Geist + Geist Mono, `.display` (+ `display-xl/lg/md`) for editorial headlines, `.label` for mono captions.
 
 ## Routes
-- Marketing: `/` (hero state field, statement, sticky pipeline, UNKNOWN, live check, live registry, policy, developers, architecture, built-for, final CTA + system status).
+- Marketing: `/` (hero sphere, statement, sticky pipeline, UNKNOWN, live check, live registry, policy, developers, architecture, built-for, final CTA + system status).
 - App shell `/app`: `/app` (overview) · `/app/assets` · `/app/assets/[symbol]` (symbol or address) · `/app/eligibility` · `/app/policies` (studio + simulator) · `/app/events` · `/app/corporate-actions` · `/app/webhooks` · `/app/workspace` (wallet) · `/app/settings`.
 - Developers: `/developers` · `/developers/quickstart` · `/developers/api` (auth, eligibility, assets, policies, events, webhooks; each with a real-request playground) · `/developers/sdk` (+ examples).
 - Old paths (`/overview`, `/assets`, `/api-reference`, `/sdk` …) redirect (see `next.config.ts`).
+
+## Hero sphere (`components/landing/sphere/`)
+- `engine.ts` — framework-free Canvas 2D renderer with its own 3D projection (deliberately no Three.js / WebGL: ~18 nodes, ~27 curves). Core + 2 token orbits + outer orbit of pipeline (State/Checks/Policy/Decision) and source (Registry/Prices/RH Chain) nodes. Springs for tilt/focus/zoom, DPR cap 1.75 (1.5 compact), IntersectionObserver + visibilitychange pause, compact mode (≤639px or coarse pointer: fewer nodes/granules, ~30 fps), reduced motion = no loop, single frames on demand. **Granule field** (900 desktop / 320 compact, purely visual, carries no data): fine dust on/inside the sphere with differential rotation + twinkle; the cursor parts it, a touched node gathers it into a status-tinted orbiting cloud, clicks send a ripple; batched into ≤24 fills/frame. Mouse/touch drag rotates with inertia (a selected node re-centres once the hand lets go).
+- `use-sphere-data.ts` — tokens = real registry assets (FEATURED symbols first *only if present*), status = engine result, system-node health = real slice health. `token-card.tsx` — evidence card (real price/volume/multiplier/checks; UNKNOWN when no evidence; wallet `balanceOf` read via wagmi). `hero-sphere.tsx` — orchestration: **no card until a node (or chip) is clicked/tapped** — hover only highlights the node and names its status, and prefetches its quote; the card follows the selected node imperatively, closes via ✕ / Esc / click on empty space / re-clicking the chip; accessible token list (arrow keys), wallet chip/arc, LiveDataManager signals → pulses/re-evaluation, scroll → zoom/tilt + stage lighting, CTA hooks (`explore` / `evaluate` via ref handle), error panel, `?debug=1` overlay (also exposes `window.__sphere`, debug only).
+- Live mode never yields ELIGIBLE, so the hero card honestly reads UNKNOWN for live assets; `hybrid` shows DEMO outcomes labelled.
+- Header `NetworkPill` is now the `[RH CHAIN ▾]` inspector (real block / RPC health / explorer / read-only notice).
 
 ## API (app/api)
 `POST /api/eligibility/check` · `GET /api/eligibility/[address]` · `GET /api/assets` · `GET /api/assets/[address]` · `…/eligibility` · `…/history` · `GET|POST /api/policies` · `GET /api/policies/[id]` · `GET /api/events` · `GET|POST /api/webhooks` · `/api/prices` · `/api/chain` · `/api/corporate-actions` · `/api/contracts/[address]` · `/api/status`.
@@ -62,7 +68,9 @@ browser ─► LiveDataManager (lib/data/live-manager.ts, the only poller) + eve
 
 ## Not done / not verified
 - Real wallet connect + wrong-network flow were not exercised with an actual wallet (only the connect modal and the config notice were verified in a headless browser).
-- 60 fps on real GPUs; reduced-motion path; screen-reader behaviour.
+- 60 fps on real GPUs (headless software rendering measured 36-60 fps with the debug overlay); screen-reader behaviour.
+- Wallet paths were exercised with a stubbed EIP-1193 provider (connected, wrong network), not a real wallet app.
+- Sphere: no cinematic replay of a real state change was observed live (no asset changed state during testing; the code path is `recalculate` on LiveDataManager signals).
 - No runtime LIVE/DEMO toggle (mode is per deployment).
 - Scroll-driven items still missing: cinematic real-time replay, policy→decision causal line, API response morphing.
 - No persistent backend: webhook delivery pipeline, policy storage, eligibility history, server-side accounts.

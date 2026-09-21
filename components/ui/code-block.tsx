@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { highlight, type Lang } from "@/lib/highlight";
 import { cn } from "@/lib/utils";
@@ -51,7 +51,7 @@ export function CodeBlock({
   reveal?: boolean;
   lineNumbers?: boolean;
 }) {
-  const reduce = useReducedMotion();
+  // server and client must render the same markup, so reduced motion is left to <MotionProvider reducedMotion="user"> (no transforms)
   const lines = useMemo(() => code.split("\n"), [code]);
   const rendered = useMemo(() => lines.map((l) => highlight(l, lang)), [lines, lang]);
 
@@ -67,8 +67,8 @@ export function CodeBlock({
             <motion.div
               key={i}
               className="flex min-h-[1.75em]"
-              initial={reveal && !reduce ? { opacity: 0, x: -6 } : false}
-              whileInView={reveal && !reduce ? { opacity: 1, x: 0 } : undefined}
+              initial={reveal ? { opacity: 0, x: -6 } : false}
+              whileInView={reveal ? { opacity: 1, x: 0 } : undefined}
               viewport={{ once: true, margin: "-10% 0px" }}
               transition={{ delay: i * 0.045, duration: 0.35 }}
             >

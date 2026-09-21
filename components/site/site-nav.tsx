@@ -5,7 +5,7 @@ import { ChevronDown, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { HealthTag } from "@/components/live/badges";
+import { FreshnessTag, HealthTag } from "@/components/live/badges";
 import { RollingText } from "@/components/live/rolling-text";
 import { Logo } from "@/components/ui/logo";
 import { Popover } from "@/components/ui/popover";
@@ -14,6 +14,7 @@ import { useLive } from "@/hooks/use-live";
 import { useSliceHealthFor } from "@/hooks/use-system-status";
 import { DATA_MODE } from "@/lib/data/config";
 import { EASE_CSS } from "@/lib/motion";
+import { RH_CHAIN_ID, RH_EXPLORER } from "@/lib/wallet/chain";
 import { cn } from "@/lib/utils";
 
 interface Item {
@@ -36,19 +37,68 @@ const RESOURCES: Item[] = [
   { href: "/app/corporate-actions", label: "Corporate actions", hint: "Splits, dividends, mergers" },
 ];
 
-/** NETWORK · RH CHAIN · block. Only a block that was actually read is ever shown. */
-export function NetworkPill({ className }: { className?: string }) {
+/**
+ * [ RH CHAIN ▾ ] — the network COMMS reads. Only a block that was actually read is ever shown; the dot is the real
+ * health of the RPC, not a decoration. There is exactly one supported network, so the menu is an inspector, not a switcher
+ * (switching a connected wallet is handled by the wallet button's wrong-network action).
+ */
+export function NetworkPill({ className, align = "right" }: { className?: string; align?: "left" | "right" }) {
   const chain = useLive((s) => s.chain);
   const health = useSliceHealthFor("chain");
   if (DATA_MODE === "demo") return null;
   const block = chain.data?.block;
   return (
-    <span className={cn("items-center gap-2 font-mono text-[11px] tracking-[0.06em] whitespace-nowrap", className)} title="Latest Robinhood Chain block, read from the RPC">
-      <span className="text-ink-3">NETWORK</span>
-      <span className="text-ink">RH CHAIN</span>
-      <HealthTag health={health} dotOnly />
-      <span className="tabular text-ink-2">{block === undefined ? "—" : <RollingText value={`#${block.toLocaleString("en-US")}`} />}</span>
-    </span>
+    <div className={className}>
+      <Popover
+        label="Network: Robinhood Chain"
+        align={align}
+        triggerClassName="inline-flex h-9 items-center gap-2 rounded-md border border-line-2 px-2.5 font-mono text-[11px] tracking-[0.06em] whitespace-nowrap text-ink transition-colors hover:border-ink/40"
+        trigger={
+          <>
+            <HealthTag health={health} dotOnly />
+            RH CHAIN
+            <span className="tabular hidden text-ink-3 xl:inline">{block === undefined ? "" : <RollingText value={`#${block.toLocaleString("en-US")}`} />}</span>
+            <ChevronDown size={12} aria-hidden className="text-ink-3" />
+          </>
+        }
+        panelClassName="w-[300px] p-0"
+      >
+        {() => (
+          <div>
+            <dl className="divide-y divide-line text-[12px]">
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <dt className="label">Network</dt>
+                <dd className="font-mono text-ink">Robinhood Chain</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <dt className="label">Chain ID</dt>
+                <dd className="font-mono text-ink">{RH_CHAIN_ID}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <dt className="label">Latest block</dt>
+                <dd className="tabular font-mono text-ink">{block === undefined ? "UNKNOWN" : `#${block.toLocaleString("en-US")}`}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <dt className="label">RPC</dt>
+                <dd className="flex items-center gap-2">
+                  <HealthTag health={health} />
+                  {chain.fetchedAt ? <FreshnessTag at={chain.fetchedAt} kind="chain" /> : null}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <dt className="label">Explorer</dt>
+                <dd>
+                  <a href={RH_EXPLORER} target="_blank" rel="noreferrer" className="font-mono text-cyan underline-offset-4 hover:underline">
+                    Blockscout ↗
+                  </a>
+                </dd>
+              </div>
+            </dl>
+            <p className="border-t border-line px-3.5 py-2.5 text-[11px] leading-relaxed text-ink-3">Read-only infrastructure. COMMS reads this chain; it never sends a transaction or asks your wallet to sign one.</p>
+          </div>
+        )}
+      </Popover>
+    </div>
   );
 }
 
@@ -135,8 +185,7 @@ export function SiteNav() {
           </div>
 
           <div className="flex items-center gap-4">
-            <NetworkPill className="hidden lg:inline-flex" />
-            <span aria-hidden className="hidden h-5 w-px bg-line-2 lg:block" />
+            <NetworkPill className="hidden sm:block" />
             <WalletButton />
             <button
               type="button"
@@ -179,7 +228,7 @@ export function SiteNav() {
                     Infrastructure
                   </Link>
                 </div>
-                <NetworkPill className="mt-2 inline-flex" />
+                <NetworkPill className="mt-2" align="left" />
               </div>
             </motion.div>
           ) : null}
