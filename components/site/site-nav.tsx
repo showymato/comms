@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,6 +23,8 @@ interface Item {
   label: string;
   hint: string;
 }
+
+const DOCS_URL = "https://nova-30.gitbook.io/nova-docs";
 
 const PRODUCTS: Item[] = [
   { href: "/app/assets", label: "Asset registry", hint: "Every Stock Token, live" },
@@ -193,6 +195,10 @@ export function SiteNav() {
                 Developers
               </Link>
               <MenuLink label="Resources" items={RESOURCES} />
+              <a href={DOCS_URL} target="_blank" rel="noreferrer" className="flex h-9 items-center gap-1 rounded-md px-3 text-[13.5px] text-ink-2 transition-colors hover:text-ink">
+                Docs
+                <ArrowUpRight size={12} aria-hidden className="text-ink-3" />
+              </a>
             </div>
           </div>
 
@@ -239,6 +245,9 @@ export function SiteNav() {
                   <Link href="/#infrastructure" className="block py-2.5 text-[22px] tracking-[-0.03em] text-ink">
                     Infrastructure
                   </Link>
+                  <a href={DOCS_URL} target="_blank" rel="noreferrer" className="block py-2.5 text-[22px] tracking-[-0.03em] text-ink">
+                    Docs ↗
+                  </a>
                 </div>
                 <NetworkPill className="mt-2" align="left" />
               </div>
